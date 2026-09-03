@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { SearchIcon, PlayIcon, PauseIcon, VolumeIcon, BackIcon, HomeIcon, VideoIcon } from '@/components/icons'
 
 export default function Solo() {
   const router = useRouter()
@@ -29,19 +30,21 @@ export default function Solo() {
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
       <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-        <h2 className="text-xl font-bold">🎬 Solo Mode</h2>
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <PlayIcon className="w-6 h-6" /> Solo Mode
+        </h2>
         <div className="flex gap-2">
           <button 
             onClick={() => router.push('/queue')}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-pink-600 rounded-lg text-sm font-semibold hover:opacity-90 transition cursor-pointer"
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-pink-600 rounded-lg text-sm font-semibold hover:opacity-90 transition cursor-pointer flex items-center gap-2"
           >
-            🔍 Find Match
+            <SearchIcon className="w-4 h-4" /> Find Match
           </button>
           <button 
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-gray-700 rounded-lg text-sm hover:bg-gray-600 transition cursor-pointer"
+            className="px-4 py-2 bg-gray-700 rounded-lg text-sm hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
           >
-            ← Home
+            <HomeIcon className="w-4 h-4" /> Home
           </button>
         </div>
       </div>
@@ -49,7 +52,7 @@ export default function Solo() {
       {!selectedVideo ? (
         /* Video Browser */
         <div className="p-6">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             <div className="flex gap-4 mb-8">
               <input
                 type="text"
@@ -62,15 +65,15 @@ export default function Solo() {
               <button
                 onClick={searchVideos}
                 disabled={loading}
-                className="px-8 py-4 bg-purple-600 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50 cursor-pointer"
+                className="px-8 py-4 bg-purple-600 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50 cursor-pointer flex items-center gap-2"
               >
-                {loading ? 'Searching...' : 'Search'}
+                <SearchIcon className="w-5 h-5" /> {loading ? 'Searching...' : 'Search'}
               </button>
             </div>
 
             {videos.length === 0 && !loading && (
               <div className="text-center py-20 text-gray-500">
-                <p className="text-5xl mb-4">🔍</p>
+                <SearchIcon className="w-16 h-16 mx-auto mb-4 text-gray-600" />
                 <p className="text-lg">Search for something to watch</p>
                 <p className="text-sm mt-2">Try: amateur, milf, teen, etc.</p>
               </div>
@@ -81,18 +84,18 @@ export default function Solo() {
                 <div 
                   key={i} 
                   onClick={() => setSelectedVideo(video)}
-                  className="bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition cursor-pointer"
+                  className="bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition cursor-pointer group"
                 >
-                  <div className="aspect-video bg-gray-800 flex items-center justify-center relative group">
+                  <div className="aspect-video bg-gray-800 flex items-center justify-center relative">
                     {video.thumbnail ? (
                       <>
                         <img src={video.thumbnail as string} alt="" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                          <span className="text-4xl">▶️</span>
+                          <PlayIcon className="w-12 h-12" />
                         </div>
                       </>
                     ) : (
-                      <span className="text-4xl">🎬</span>
+                      <VideoIcon className="w-12 h-12 text-gray-600" />
                     )}
                   </div>
                   <div className="p-3">
@@ -112,34 +115,29 @@ export default function Solo() {
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-65px)] p-6">
           <div className="w-full max-w-5xl">
             {/* Player */}
-            <div className="aspect-video bg-gray-900 rounded-xl flex flex-col items-center justify-center relative mb-4">
-              <img 
-                src={selectedVideo.thumbnail as string} 
-                alt="" 
-                className="absolute inset-0 w-full h-full object-cover rounded-xl"
+            <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden">
+              <iframe
+                src={`https://www.pornhub.com/embed/${String(selectedVideo.videoId)}`}
+                className="w-full h-full"
+                allowFullScreen
+                allow="autoplay; encrypted-media"
+                frameBorder={0}
               />
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                <button 
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className="text-7xl hover:scale-110 transition cursor-pointer"
-                >
-                  {isPlaying ? '⏸️' : '▶️'}
-                </button>
-              </div>
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center justify-between mb-4">
+            {/* Info & Controls */}
+            <div className="mt-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">{String(selectedVideo.title)}</h3>
                 <div className="flex gap-4 text-sm text-gray-400">
                   {selectedVideo.duration && <span>{String(selectedVideo.duration)}</span>}
                   {selectedVideo.views && <span>{String(selectedVideo.views)}</span>}
+                  {selectedVideo.rating && <span>{String(selectedVideo.rating)}</span>}
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <span>🔊</span>
+                  <VolumeIcon className="w-5 h-5 text-gray-400" />
                   <input
                     type="range"
                     min="0"
@@ -151,9 +149,9 @@ export default function Solo() {
                 </div>
                 <button 
                   onClick={() => setSelectedVideo(null)}
-                  className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition cursor-pointer"
+                  className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
                 >
-                  ← Back
+                  <BackIcon className="w-5 h-5" /> Back
                 </button>
               </div>
             </div>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { SearchIcon } from '@/components/icons'
 
 const allInterests = [
   'Amateur', 'Anal', 'Asian', 'BBW', 'Big Ass', 'Big Tits', 'Blonde', 'Blowjob',
@@ -62,9 +63,9 @@ export default function Interests() {
         </button>
         <button 
           onClick={handleNext}
-          className="px-8 py-3 bg-gradient-to-r from-blue-600 to-pink-600 rounded-lg font-semibold hover:opacity-90 transition cursor-pointer"
+          className="px-8 py-3 bg-gradient-to-r from-blue-600 to-pink-600 rounded-lg font-semibold hover:opacity-90 transition cursor-pointer flex items-center gap-2"
         >
-          Find Match
+          <SearchIcon className="w-5 h-5" /> Find Match
         </button>
       </div>
     </div>

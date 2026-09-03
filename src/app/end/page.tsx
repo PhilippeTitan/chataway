@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { StarIcon, SearchIcon, VideoIcon, ReportIcon, HomeIcon, RefreshIcon, CheckIcon } from '@/components/icons'
 
 export default function End() {
   const router = useRouter()
@@ -27,7 +28,7 @@ export default function End() {
   if (submitted) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
-        <div className="text-6xl mb-6">✅</div>
+        <CheckIcon className="w-20 h-20 text-green-500 mb-6" />
         <h2 className="text-2xl font-bold mb-2">Thanks for your feedback</h2>
         <p className="text-gray-400">Redirecting to home...</p>
       </div>
@@ -47,9 +48,9 @@ export default function End() {
               <button
                 key={star}
                 onClick={() => setRating(star)}
-                className={`text-3xl transition cursor-pointer ${rating && star <= rating ? 'scale-110' : 'opacity-50 hover:opacity-75'}`}
+                className={`transition cursor-pointer ${rating && star <= rating ? 'scale-110 text-yellow-500' : 'text-gray-600 hover:text-gray-400'}`}
               >
-                ⭐
+                <StarIcon className="w-10 h-10" filled={!!(rating && star <= rating)} />
               </button>
             ))}
           </div>
@@ -59,37 +60,37 @@ export default function End() {
         <div className="space-y-3">
           <button 
             onClick={() => router.push('/queue')}
-            className="w-full py-3 bg-gradient-to-r from-blue-600 to-pink-600 rounded-lg font-semibold hover:opacity-90 transition cursor-pointer"
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-pink-600 rounded-lg font-semibold hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
           >
-            Find Another Match
+            <SearchIcon className="w-5 h-5" /> Find Another Match
           </button>
           
           <button 
             onClick={() => router.push('/queue')}
-            className="w-full py-3 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition cursor-pointer"
+            className="w-full py-3 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition cursor-pointer flex items-center justify-center gap-2"
           >
-            🔁 Find Same Person
+            <RefreshIcon className="w-5 h-5" /> Find Same Person
           </button>
 
           <button 
             onClick={() => router.push('/solo')}
-            className="w-full py-3 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition cursor-pointer"
+            className="w-full py-3 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition cursor-pointer flex items-center justify-center gap-2"
           >
-            🎬 Watch Solo
+            <VideoIcon className="w-5 h-5" /> Watch Solo
           </button>
 
           <button 
             onClick={() => setReportOpen(!reportOpen)}
-            className="w-full py-3 bg-red-600/20 text-red-500 rounded-lg font-semibold hover:bg-red-600/30 transition cursor-pointer"
+            className="w-full py-3 bg-red-600/20 text-red-500 rounded-lg font-semibold hover:bg-red-600/30 transition cursor-pointer flex items-center justify-center gap-2"
           >
-            🚨 Report User
+            <ReportIcon className="w-5 h-5" /> Report User
           </button>
 
           <button 
             onClick={() => router.push('/')}
-            className="w-full py-3 bg-gray-800 rounded-lg font-semibold hover:bg-gray-700 transition cursor-pointer"
+            className="w-full py-3 bg-gray-800 rounded-lg font-semibold hover:bg-gray-700 transition cursor-pointer flex items-center justify-center gap-2"
           >
-            Back to Home
+            <HomeIcon className="w-5 h-5" /> Back to Home
           </button>
         </div>
 
@@ -115,9 +116,9 @@ export default function End() {
             <button 
               onClick={handleSubmit}
               disabled={!reportReason}
-              className="w-full mt-4 py-2 bg-red-600 rounded font-semibold hover:bg-red-700 transition disabled:opacity-50 cursor-pointer"
+              className="w-full mt-4 py-2 bg-red-600 rounded font-semibold hover:bg-red-700 transition disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
             >
-              Submit Report
+              <ReportIcon className="w-5 h-5" /> Submit Report
             </button>
           </div>
         )}

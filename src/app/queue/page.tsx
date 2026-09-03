@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { SearchIcon, VideoIcon, CloseIcon } from '@/components/icons'
 
 export default function Queue() {
   const router = useRouter()
@@ -17,7 +18,6 @@ export default function Queue() {
       setTime(prev => prev + 1)
     }, 1000)
 
-    // Simulate finding a match after random time
     const matchTimeout = setTimeout(() => {
       router.push('/chat')
     }, 3000 + Math.random() * 5000)
@@ -33,7 +33,9 @@ export default function Queue() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
-      <div className="text-6xl mb-8 animate-pulse">🔍</div>
+      <div className="mb-8 animate-pulse">
+        <SearchIcon className="w-20 h-20 text-blue-500" />
+      </div>
       
       <h2 className="text-2xl font-bold mb-2">Finding your match{dots}</h2>
       <p className="text-gray-400 mb-8">
@@ -45,15 +47,15 @@ export default function Queue() {
       <div className="flex gap-4">
         <button 
           onClick={() => router.push('/solo')}
-          className="px-6 py-3 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition cursor-pointer"
+          className="px-6 py-3 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
         >
-          Watch Solo Instead
+          <VideoIcon className="w-5 h-5" /> Watch Solo
         </button>
         <button 
           onClick={() => router.push('/')}
-          className="px-6 py-3 bg-red-600 rounded-lg font-semibold hover:bg-red-700 transition cursor-pointer"
+          className="px-6 py-3 bg-red-600 rounded-lg font-semibold hover:bg-red-700 transition cursor-pointer flex items-center gap-2"
         >
-          Cancel
+          <CloseIcon className="w-5 h-5" /> Cancel
         </button>
       </div>
     </div>

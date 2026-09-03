@@ -2,12 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { VideoIcon, SkipIcon, CloseIcon, SendIcon } from '@/components/icons'
 
 interface Message {
   id: number
   sender: 'me' | 'them'
   text: string
-  image?: string
   time: string
 }
 
@@ -16,22 +16,18 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [showSkip, setShowSkip] = useState(false)
-  const [showEmoji, setShowEmoji] = useState(false)
   const messagesEnd = useRef<HTMLDivElement>(null)
 
-  const emojis = ['😏', '🔥', '😍', '💕', '💦', '😈', '🥵', '😭', '✊', '🤤']
-
   useEffect(() => {
-    // Show skip button after 10 seconds
     const timer = setTimeout(() => setShowSkip(true), 10000)
     
-    // Random "them" messages for demo
-    const demoMessages = [
-      { id: 1, sender: 'them' as const, text: 'Hey :) what are you into?', time: '2:30 PM' },
-    ]
-    
     setTimeout(() => {
-      setMessages(demoMessages)
+      setMessages([{
+        id: 1,
+        sender: 'them',
+        text: 'Hey :) what are you into?',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }])
     }, 2000)
 
     return () => clearTimeout(timer)
@@ -44,25 +40,16 @@ export default function Chat() {
   const sendMessage = () => {
     if (!input.trim()) return
     
-    const newMsg: Message = {
+    setMessages(prev => [...prev, {
       id: Date.now(),
       sender: 'me',
       text: input,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-    
-    setMessages(prev => [...prev, newMsg])
+    }])
     setInput('')
 
-    // Simulate reply
     setTimeout(() => {
-      const replies = [
-        'Nice! Tell me more 😏',
-        'I like that too 🔥',
-        'Hmm interesting...',
-        'What else do you like?',
-        'Show me? 😈',
-      ]
+      const replies = ['Nice! Tell me more', 'I like that too', 'Hmm interesting...', 'What else do you like?', 'Show me?']
       setMessages(prev => [...prev, {
         id: Date.now(),
         sender: 'them',
@@ -72,44 +59,34 @@ export default function Chat() {
     }, 1000 + Math.random() * 2000)
   }
 
-  const sendEmoji = (emoji: string) => {
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      sender: 'me',
-      text: emoji,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }])
-    setShowEmoji(false)
-  }
-
   return (
     <div className="h-screen bg-black text-white flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-        <div>
-          <span className="text-green-500 text-sm">● Connected</span>
-          <span className="ml-4 text-gray-400">Anonymous User</span>
+        <div className="flex items-center gap-3">
+          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+          <span className="text-gray-400">Anonymous User</span>
         </div>
         <div className="flex gap-2">
           <button 
             onClick={() => router.push('/watch')}
-            className="px-4 py-2 bg-purple-600 rounded-lg text-sm font-semibold hover:bg-purple-700 transition cursor-pointer"
+            className="px-4 py-2 bg-purple-600 rounded-lg text-sm font-semibold hover:bg-purple-700 transition cursor-pointer flex items-center gap-2"
           >
-            🎬 Watch Together
+            <VideoIcon className="w-4 h-4" /> Watch Together
           </button>
           {showSkip && (
             <button 
               onClick={() => router.push('/queue')}
-              className="px-4 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700 transition cursor-pointer"
+              className="px-4 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700 transition cursor-pointer flex items-center gap-2"
             >
-              ⏭ Skip
+              <SkipIcon className="w-4 h-4" /> Skip
             </button>
           )}
           <button 
             onClick={() => router.push('/end')}
-            className="px-4 py-2 bg-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-600 transition cursor-pointer"
+            className="px-4 py-2 bg-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
           >
-            ✕ End
+            <CloseIcon className="w-4 h-4" /> End
           </button>
         </div>
       </div>
@@ -118,7 +95,11 @@ export default function Chat() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="text-center text-gray-500 mt-20">
-            <p className="text-4xl mb-4">💬</p>
+            <div className="w-16 h-16 mx-auto mb-4 text-gray-600">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
             <p>Waiting for messages...</p>
           </div>
         )}
@@ -128,7 +109,7 @@ export default function Chat() {
               msg.sender === 'me' 
                 ? 'bg-blue-600 text-white' 
                 : 'bg-gray-800 text-gray-200'
-            } ${msg.text.length <= 2 ? 'text-3xl px-2 py-1' : ''}`}>
+            }`}>
               <p>{msg.text}</p>
               <p className="text-xs opacity-50 mt-1">{msg.time}</p>
             </div>
@@ -137,32 +118,9 @@ export default function Chat() {
         <div ref={messagesEnd} />
       </div>
 
-      {/* Emoji Picker */}
-      {showEmoji && (
-        <div className="p-4 bg-gray-900 border-t border-gray-800">
-          <div className="flex gap-2 justify-center">
-            {emojis.map(emoji => (
-              <button
-                key={emoji}
-                onClick={() => sendEmoji(emoji)}
-                className="text-2xl hover:scale-125 transition cursor-pointer p-2"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Input */}
       <div className="p-4 border-t border-gray-800">
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowEmoji(!showEmoji)}
-            className="px-4 py-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition cursor-pointer text-xl"
-          >
-            😊
-          </button>
           <input
             type="text"
             value={input}
@@ -173,8 +131,11 @@ export default function Chat() {
           />
           <button
             onClick={sendMessage}
-            className="px-6 py-3 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition cursor-pointer"
+            className="px-6 py-3 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition cursor-pointer flex items-center gap-2"
           >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
             Send
           </button>
         </div>

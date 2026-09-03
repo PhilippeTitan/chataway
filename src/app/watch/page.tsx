@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { SearchIcon, PlayIcon, PauseIcon, CloseIcon, ChatIcon, BackIcon } from '@/components/icons'
 
 export default function Watch() {
   const router = useRouter()
@@ -12,7 +13,7 @@ export default function Watch() {
   const [loading, setLoading] = useState(false)
   const [chatOpen, setChatOpen] = useState(true)
   const [messages, setMessages] = useState<{sender: string, text: string}[]>([
-    { sender: 'them', text: 'Pick something hot! 🔥' }
+    { sender: 'them', text: 'Pick something hot!' }
   ])
   const [input, setInput] = useState('')
 
@@ -32,14 +33,14 @@ export default function Watch() {
   const selectVideo = (video: Record<string, unknown>) => {
     setSelectedVideo(video)
     setIsPlaying(true)
-    setMessages(prev => [...prev, { sender: 'them', text: `Nice choice! 😏` }])
+    setMessages(prev => [...prev, { sender: 'them', text: 'Nice choice!' }])
   }
 
   const togglePlay = () => {
     setIsPlaying(!isPlaying)
     setMessages(prev => [...prev, { 
       sender: 'me', 
-      text: isPlaying ? '⏸ Paused' : '▶️ Playing' 
+      text: isPlaying ? 'Paused' : 'Playing' 
     }])
   }
 
@@ -55,19 +56,21 @@ export default function Watch() {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-          <h2 className="text-xl font-bold">🎬 Watch Together</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <VideoIcon className="w-6 h-6" /> Watch Together
+          </h2>
           <div className="flex gap-2">
             <button 
               onClick={() => router.push('/chat')}
-              className="px-4 py-2 bg-gray-700 rounded-lg text-sm hover:bg-gray-600 transition cursor-pointer"
+              className="px-4 py-2 bg-gray-700 rounded-lg text-sm hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
             >
-              💬 Chat Only
+              <ChatIcon className="w-4 h-4" /> Chat Only
             </button>
             <button 
               onClick={() => router.push('/end')}
-              className="px-4 py-2 bg-red-600 rounded-lg text-sm hover:bg-red-700 transition cursor-pointer"
+              className="px-4 py-2 bg-red-600 rounded-lg text-sm hover:bg-red-700 transition cursor-pointer flex items-center gap-2"
             >
-              ✕ End Session
+              <CloseIcon className="w-4 h-4" /> End
             </button>
           </div>
         </div>
@@ -87,9 +90,9 @@ export default function Watch() {
               <button
                 onClick={searchVideos}
                 disabled={loading}
-                className="px-8 py-4 bg-purple-600 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50 cursor-pointer"
+                className="px-8 py-4 bg-purple-600 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50 cursor-pointer flex items-center gap-2"
               >
-                {loading ? 'Searching...' : 'Search'}
+                <SearchIcon className="w-5 h-5" /> {loading ? 'Searching...' : 'Search'}
               </button>
             </div>
 
@@ -98,13 +101,18 @@ export default function Watch() {
                 <div 
                   key={i} 
                   onClick={() => selectVideo(video)}
-                  className="bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition cursor-pointer"
+                  className="bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition cursor-pointer group"
                 >
-                  <div className="aspect-video bg-gray-800 flex items-center justify-center">
+                  <div className="aspect-video bg-gray-800 flex items-center justify-center relative">
                     {video.thumbnail ? (
-                      <img src={video.thumbnail as string} alt="" className="w-full h-full object-cover" />
+                      <>
+                        <img src={video.thumbnail as string} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                          <PlayIcon className="w-12 h-12" />
+                        </div>
+                      </>
                     ) : (
-                      <span className="text-4xl">🎬</span>
+                      <VideoIcon className="w-12 h-12 text-gray-600" />
                     )}
                   </div>
                   <div className="p-3">
@@ -120,25 +128,42 @@ export default function Watch() {
           </div>
         ) : (
           /* Video Player */
-          <div className="flex-1 flex items-center justify-center bg-black">
-            <div className="w-full max-w-4xl aspect-video bg-gray-900 rounded-lg flex flex-col items-center justify-center relative">
-              <div className="text-6xl mb-4">🎬</div>
-              <p className="text-xl mb-2">{String(selectedVideo.title)}</p>
-              <p className="text-gray-400 text-sm mb-6">Synced playback with your match</p>
+          <div className="flex-1 flex items-center justify-center bg-black p-4">
+            <div className="w-full max-w-5xl">
+              <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden relative">
+                <iframe
+                  src={`https://www.pornhub.com/embed/${String(selectedVideo.videoId)}`}
+                  className="w-full h-full"
+                  allowFullScreen
+                  allow="autoplay; encrypted-media"
+                  frameBorder={0}
+                />
+              </div>
               
-              <div className="flex gap-4">
-                <button 
-                  onClick={togglePlay}
-                  className="px-8 py-3 bg-white text-black rounded-lg font-semibold hover:bg-gray-200 transition cursor-pointer"
-                >
-                  {isPlaying ? '⏸ Pause' : '▶️ Play'}
-                </button>
-                <button 
-                  onClick={() => setSelectedVideo(null)}
-                  className="px-8 py-3 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition cursor-pointer"
-                >
-                  ← Back to Search
-                </button>
+              <div className="mt-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">{String(selectedVideo.title)}</h3>
+                  <div className="flex gap-4 text-sm text-gray-400">
+                    {selectedVideo.duration && <span>{String(selectedVideo.duration)}</span>}
+                    {selectedVideo.views && <span>{String(selectedVideo.views)}</span>}
+                    {selectedVideo.rating && <span>{String(selectedVideo.rating)}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={togglePlay}
+                    className="px-4 py-2 bg-white text-black rounded-lg font-semibold hover:bg-gray-200 transition cursor-pointer flex items-center gap-2"
+                  >
+                    {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
+                    {isPlaying ? 'Pause' : 'Play'}
+                  </button>
+                  <button 
+                    onClick={() => setSelectedVideo(null)}
+                    className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
+                  >
+                    <BackIcon className="w-5 h-5" /> Back
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -149,8 +174,12 @@ export default function Watch() {
       {chatOpen && (
         <div className="w-80 border-l border-gray-800 flex flex-col">
           <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-            <span className="font-semibold text-sm">Live Chat</span>
-            <button onClick={() => setChatOpen(false)} className="text-gray-500 hover:text-white cursor-pointer">✕</button>
+            <span className="font-semibold text-sm flex items-center gap-2">
+              <ChatIcon className="w-4 h-4" /> Live Chat
+            </span>
+            <button onClick={() => setChatOpen(false)} className="text-gray-500 hover:text-white cursor-pointer">
+              <CloseIcon className="w-4 h-4" />
+            </button>
           </div>
           
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -174,7 +203,11 @@ export default function Watch() {
                 placeholder="Chat..."
                 className="flex-1 px-3 py-2 bg-gray-800 rounded text-sm text-white placeholder-gray-500 focus:outline-none"
               />
-              <button onClick={sendMessage} className="px-3 py-2 bg-blue-600 rounded text-sm cursor-pointer">Send</button>
+              <button onClick={sendMessage} className="px-3 py-2 bg-blue-600 rounded text-sm cursor-pointer">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -183,11 +216,19 @@ export default function Watch() {
       {!chatOpen && (
         <button 
           onClick={() => setChatOpen(true)}
-          className="fixed bottom-4 right-4 px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700 transition cursor-pointer"
+          className="fixed bottom-4 right-4 px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700 transition cursor-pointer flex items-center gap-2"
         >
-          💬 Open Chat
+          <ChatIcon className="w-5 h-5" /> Open Chat
         </button>
       )}
     </div>
+  )
+}
+
+function VideoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    </svg>
   )
 }

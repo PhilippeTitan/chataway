@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { CheckIcon, WarningIcon } from '@/components/icons'
 
 export default function Landing() {
   const router = useRouter()
@@ -21,13 +22,14 @@ export default function Landing() {
         <p className="text-gray-400 mb-10 text-lg">Anonymous connections. No BS.</p>
         
         <div className="bg-gray-900 p-8 rounded-xl max-w-md w-full text-center">
+          <WarningIcon className="w-16 h-16 mx-auto mb-4 text-yellow-500" />
           <p className="text-xl mb-6">Are you 18 or older?</p>
           <div className="flex gap-4 justify-center">
             <button 
               onClick={() => setStep('tos')}
-              className="px-8 py-3 bg-green-600 rounded-lg text-lg font-semibold hover:bg-green-700 transition cursor-pointer"
+              className="px-8 py-3 bg-green-600 rounded-lg text-lg font-semibold hover:bg-green-700 transition cursor-pointer flex items-center gap-2"
             >
-              Yes, I am
+              <CheckIcon className="w-5 h-5" /> Yes, I am
             </button>
             <button 
               onClick={() => window.location.href = 'https://google.com'}
@@ -63,9 +65,9 @@ export default function Landing() {
           </div>
           <button 
             onClick={() => setStep('gender')}
-            className="w-full py-3 bg-blue-600 rounded-lg text-lg font-semibold hover:bg-blue-700 transition cursor-pointer"
+            className="w-full py-3 bg-blue-600 rounded-lg text-lg font-semibold hover:bg-blue-700 transition cursor-pointer flex items-center justify-center gap-2"
           >
-            I Accept
+            <CheckIcon className="w-5 h-5" /> I Accept
           </button>
         </div>
       </div>
