@@ -1,17 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { SearchIcon, PlayIcon, PauseIcon, CloseIcon, ChatIcon, BackIcon, VideoIcon } from '@/components/icons'
+import { SearchIcon, PlayIcon, CloseIcon, ChatIcon, BackIcon, VideoIcon } from '@/components/icons'
 
 const videoCache = new Map<string, Record<string, unknown>[]>()
+
+interface VideoWithPreview extends Record<string, unknown> {
+  videoId: string
+  thumbnail: string
+  title: string
+  duration?: string
+  views?: string
+  previewThumbs?: string[]
+}
 
 export default function Watch() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
-  const [videos, setVideos] = useState<Record<string, unknown>[]>([])
-  const [selectedVideo, setSelectedVideo] = useState<Record<string, unknown> | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
+  const [videos, setVideos] = useState<VideoWithPreview[]>([])
+  const [selectedVideo, setSelectedVideo] = useState<VideoWithPreview | null>(null)
   const [loading, setLoading] = useState(false)
   const [chatOpen, setChatOpen] = useState(true)
   const [messages, setMessages] = useState<{sender: string, text: string}[]>([
@@ -19,12 +27,15 @@ export default function Watch() {
   ])
   const [input, setInput] = useState('')
   const [searched, setSearched] = useState(false)
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [previewFrame, setPreviewFrame] = useState(0)
+  const previewInterval = useRef<NodeJS.Timeout | null>(null)
 
   const searchVideos = useCallback(async (query: string) => {
     if (!query.trim()) return
 
     if (videoCache.has(query)) {
-      setVideos(videoCache.get(query)!)
+      setVideos(videoCache.get(query) as VideoWithPreview[])
       setSearched(true)
       return
     }
@@ -34,7 +45,13 @@ export default function Watch() {
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
       const data = await res.json()
-      const results = Array.isArray(data) ? data.slice(0, 12) : []
+      const results: VideoWithPreview[] = (Array.isArray(data) ? data.slice(0, 12) : []).map((v: Record<string, unknown>) => ({
+        ...v,
+        videoId: String(v.videoId || ''),
+        thumbnail: String(v.thumbnail || ''),
+        title: String(v.title || 'Untitled'),
+        previewThumbs: generatePreviewThumbs(String(v.thumbnail || ''))
+      }))
       videoCache.set(query, results)
       setVideos(results)
     } catch (err) {
@@ -42,6 +59,32 @@ export default function Watch() {
     }
     setLoading(false)
   }, [])
+
+  const generatePreviewThumbs = (thumbUrl: string): string[] => {
+    if (!thumbUrl) return []
+    const thumbs = []
+    for (let i = 1; i <= 8; i++) {
+      thumbs.push(thumbUrl.replace(/\d+\.jpg/, `${i}.jpg`))
+    }
+    return thumbs
+  }
+
+  useEffect(() => {
+    if (hoveredIndex !== null) {
+      setPreviewFrame(0)
+      previewInterval.current = setInterval(() => {
+        setPreviewFrame(prev => (prev + 1) % 8)
+      }, 150)
+    } else {
+      if (previewInterval.current) {
+        clearInterval(previewInterval.current)
+        previewInterval.current = null
+      }
+    }
+    return () => {
+      if (previewInterval.current) clearInterval(previewInterval.current)
+    }
+  }, [hoveredIndex])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -52,9 +95,8 @@ export default function Watch() {
     return () => clearTimeout(timer)
   }, [searchQuery, searchVideos])
 
-  const selectVideo = (video: Record<string, unknown>) => {
+  const selectVideo = (video: VideoWithPreview) => {
     setSelectedVideo(video)
-    setIsPlaying(true)
     setMessages(prev => [...prev, { sender: 'them', text: 'Nice choice!' }])
   }
 
@@ -62,6 +104,13 @@ export default function Watch() {
     if (!input.trim()) return
     setMessages(prev => [...prev, { sender: 'me', text: input }])
     setInput('')
+  }
+
+  const getPreviewThumb = (video: VideoWithPreview, frame: number): string => {
+    if (video.previewThumbs && video.previewThumbs[frame]) {
+      return video.previewThumbs[frame]
+    }
+    return video.thumbnail
   }
 
   return (
@@ -90,7 +139,6 @@ export default function Watch() {
         </div>
 
         {!selectedVideo ? (
-          /* Video Browser */
           <div className="flex-1 overflow-y-auto p-6">
             {/* Search */}
             <div className="relative mb-6">
@@ -127,7 +175,6 @@ export default function Watch() {
               </div>
             )}
 
-            {/* Empty State */}
             {!searched && !loading && (
               <div className="text-center py-20 text-gray-500">
                 <SearchIcon className="w-16 h-16 mx-auto mb-4 text-gray-600" />
@@ -135,31 +182,55 @@ export default function Watch() {
               </div>
             )}
 
-            {/* Video Grid */}
+            {/* Video Grid with Hover Preview */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               {videos.map((video, i) => (
                 <div 
                   key={i} 
                   onClick={() => selectVideo(video)}
-                  className="bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all duration-200 cursor-pointer group hover:scale-[1.02]"
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  className="bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all duration-200 cursor-pointer group"
                 >
                   <div className="aspect-video bg-gray-800 relative overflow-hidden">
                     {video.thumbnail ? (
                       <>
                         <img 
-                          src={video.thumbnail as string} 
+                          src={hoveredIndex === i ? getPreviewThumb(video, previewFrame) : video.thumbnail}
                           alt="" 
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                          className={`w-full h-full object-cover transition-all duration-200 ${
+                            hoveredIndex === i ? 'scale-110 brightness-110' : 'group-hover:scale-105'
+                          }`}
                           loading="lazy"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                            <PlayIcon className="w-6 h-6 text-white ml-1" />
+                        
+                        <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300 ${
+                          hoveredIndex === i ? 'opacity-100' : 'opacity-0'
+                        }`}></div>
+                        
+                        <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
+                          hoveredIndex === i ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+                        }`}>
+                          <div className="w-14 h-14 bg-purple-600/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg shadow-purple-500/30">
+                            <PlayIcon className="w-7 h-7 text-white ml-1" />
                           </div>
                         </div>
+
+                        {hoveredIndex === i && (
+                          <div className="absolute bottom-2 left-2 right-2 flex gap-1">
+                            {[...Array(8)].map((_, frame) => (
+                              <div 
+                                key={frame}
+                                className={`h-1 flex-1 rounded-full transition-all duration-150 ${
+                                  frame === previewFrame ? 'bg-purple-500' : 'bg-white/30'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        )}
+
                         {video.duration && (
-                          <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-medium">
+                          <div className="absolute top-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-medium">
                             {String(video.duration)}
                           </div>
                         )}
@@ -170,11 +241,14 @@ export default function Watch() {
                       </div>
                     )}
                   </div>
+                  
                   <div className="p-3">
-                    <h3 className="font-medium text-sm line-clamp-2 group-hover:text-purple-400 transition-colors">
-                      {String(video.title || 'Untitled')}
+                    <h3 className={`font-medium text-sm line-clamp-2 transition-colors ${
+                      hoveredIndex === i ? 'text-purple-400' : 'text-white'
+                    }`}>
+                      {video.title}
                     </h3>
-                    <div className="flex gap-3 text-xs text-gray-500 mt-1">
+                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                       {video.views && <span>{String(video.views)}</span>}
                     </div>
                   </div>
@@ -183,11 +257,10 @@ export default function Watch() {
             </div>
           </div>
         ) : (
-          /* Video Player - Instant */
           <div className="flex-1 flex flex-col bg-black">
             <div className="flex-1 relative">
               <iframe
-                src={`https://www.pornhub.com/embed/${String(selectedVideo.videoId)}?autoplay=1`}
+                src={`https://www.pornhub.com/embed/${selectedVideo.videoId}?autoplay=1`}
                 className="w-full h-full"
                 allowFullScreen
                 allow="autoplay; encrypted-media"
@@ -196,7 +269,7 @@ export default function Watch() {
             </div>
             <div className="p-4 border-t border-gray-800 flex items-center justify-between shrink-0">
               <div className="min-w-0">
-                <h3 className="font-semibold truncate">{String(selectedVideo.title)}</h3>
+                <h3 className="font-semibold truncate">{selectedVideo.title}</h3>
                 <div className="flex gap-4 text-sm text-gray-400">
                   {selectedVideo.duration && <span>{String(selectedVideo.duration)}</span>}
                   {selectedVideo.views && <span>{String(selectedVideo.views)}</span>}
