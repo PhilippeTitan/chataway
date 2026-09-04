@@ -6,6 +6,7 @@ import RequestBubble, { Request } from './RequestBubble'
 import SafetyExit from './SafetyExit'
 import RoleSwitch from './RoleSwitch'
 import CategoryPicker from './CategoryPicker'
+import { BoltIcon, HeartIcon, StopIcon, BackIcon, ChatIcon } from './icons'
 
 export type ControlModeState = 'idle' | 'safety' | 'role_switch' | 'aftercare'
 
@@ -49,7 +50,6 @@ export default function ControlMode({
   const [pendingICame, setPendingICame] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll on new content
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -153,13 +153,13 @@ export default function ControlMode({
           </div>
           <button
             onClick={onDeactivate}
-            className="px-3 py-1.5 rounded-lg bg-gray-800 text-xs text-gray-300 hover:bg-gray-700 hover:text-white transition cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-gray-800 text-xs text-gray-300 hover:bg-gray-700 hover:text-white transition cursor-pointer flex items-center gap-1"
           >
+            <ChatIcon className="w-3.5 h-3.5" />
             Back to chat
           </button>
         </div>
 
-        {/* Partner status */}
         <div className="flex items-center gap-2 mt-2">
           <div className={`w-2 h-2 rounded-full ${partnerOnline ? 'bg-emerald-400' : 'bg-gray-600'}`} />
           <span className="text-[11px] text-gray-400">
@@ -170,10 +170,9 @@ export default function ControlMode({
 
       {/* Main content */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-        {/* Aftercare mode */}
         {modeState === 'aftercare' && (
           <div className="rounded-xl border border-pink-500/30 bg-pink-950/20 p-4 text-center">
-            <span className="text-3xl block mb-2">🌸</span>
+            <HeartIcon className="w-8 h-8 text-pink-400 mx-auto mb-2" />
             <p className="text-sm font-medium text-white mb-1">Aftercare mode</p>
             <p className="text-xs text-gray-400">
               Just vibes. No more quests. Send reactions and enjoy the moment together.
@@ -181,7 +180,6 @@ export default function ControlMode({
           </div>
         )}
 
-        {/* Role switch */}
         {modeState === 'role_switch' && (
           <RoleSwitch
             initiator={roleSwitchInitiator}
@@ -191,7 +189,6 @@ export default function ControlMode({
           />
         )}
 
-        {/* Safety exit */}
         {modeState === 'safety' && (
           <SafetyExit
             onSend={(reason) => {
@@ -202,7 +199,6 @@ export default function ControlMode({
           />
         )}
 
-        {/* Quests */}
         {quests.map((quest) => (
           <QuestBubble
             key={quest.id}
@@ -214,7 +210,6 @@ export default function ControlMode({
           />
         ))}
 
-        {/* Requests */}
         {requests.map((request) => (
           <RequestBubble
             key={request.id}
@@ -229,7 +224,6 @@ export default function ControlMode({
       {/* Bottom controls */}
       {modeState === 'idle' && (
         <div className="border-t border-gray-800 p-4 space-y-3">
-          {/* Controller: send quests */}
           {isController && (
             <>
               <CategoryPicker onSelect={handleCategorySelect} />
@@ -253,7 +247,6 @@ export default function ControlMode({
             </>
           )}
 
-          {/* Participant: request something */}
           {!isController && (
             <div className="flex gap-2">
               <input
@@ -296,37 +289,36 @@ export default function ControlMode({
             </div>
           )}
 
-          {/* Bottom row: full auto + I came + safety */}
           <div className="flex items-center gap-2">
-            {/* Full auto toggle (participant only) */}
             {!isController && (
               <button
                 onClick={handleFullAutoToggle}
-                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5 ${
                   fullAuto
                     ? 'bg-amber-600/20 border border-amber-500/40 text-amber-300'
                     : 'bg-gray-800 border border-gray-700 text-gray-400'
                 }`}
               >
-                ⚡ Full auto {fullAuto ? 'ON' : 'OFF'}
+                <BoltIcon className="w-3.5 h-3.5" />
+                Full auto {fullAuto ? 'ON' : 'OFF'}
               </button>
             )}
 
-            {/* I came */}
             <button
               onClick={handleICame}
               disabled={pendingICame}
-              className="flex-1 px-3 py-2 rounded-lg bg-gradient-to-r from-pink-600 to-purple-600 text-xs font-semibold hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 transition cursor-pointer"
+              className="flex-1 px-3 py-2 rounded-lg bg-gradient-to-r from-pink-600 to-purple-600 text-xs font-semibold hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 transition cursor-pointer flex items-center justify-center gap-1.5"
             >
-              🫠 I came
+              <HeartIcon className="w-3.5 h-3.5" />
+              I came
             </button>
 
-            {/* Safety exit */}
             <button
               onClick={() => handleSafetyExit('')}
-              className="px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition cursor-pointer"
+              className="px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition cursor-pointer flex items-center gap-1.5"
             >
-              💙 I need to stop
+              <StopIcon className="w-3.5 h-3.5" />
+              Stop
             </button>
           </div>
         </div>

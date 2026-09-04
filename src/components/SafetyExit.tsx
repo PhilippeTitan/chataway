@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { StopIcon, PauseCircleIcon, WaveformIcon, SwitchIcon, XCircleIcon } from './icons'
 
 type SafetyStep = 'initial' | 'response' | 'waiting'
 
@@ -10,11 +11,11 @@ interface SafetyExitProps {
 }
 
 const CARE_RESPONSES = [
-  { id: 'uncomfortable', text: 'I feel uncomfortable with...', emoji: '😟' },
-  { id: 'break', text: 'I need a break', emoji: '⏸️' },
-  { id: 'slower', text: "I'm good, just slower", emoji: '🌊' },
-  { id: 'switch', text: "Let's switch roles", emoji: '🔄' },
-  { id: 'stop', text: "Let's stop for now", emoji: '🛑' },
+  { id: 'uncomfortable', text: 'I feel uncomfortable with...', Icon: XCircleIcon },
+  { id: 'break', text: 'I need a break', Icon: PauseCircleIcon },
+  { id: 'slower', text: "I'm good, just slower", Icon: WaveformIcon },
+  { id: 'switch', text: "Let's switch roles", Icon: SwitchIcon },
+  { id: 'stop', text: "Let's stop for now", Icon: StopIcon },
 ]
 
 export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
@@ -43,7 +44,7 @@ export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
     return (
       <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-4">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-lg">💙</span>
+          <StopIcon className="w-5 h-5 text-blue-400" />
           <p className="text-sm font-medium text-white">Message sent</p>
         </div>
         <p className="text-xs text-gray-400 mb-3">
@@ -62,7 +63,7 @@ export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
   return (
     <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-4">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-lg">💙</span>
+        <StopIcon className="w-5 h-5 text-blue-400" />
         <div>
           <p className="text-sm font-medium text-white">Hey, what's up?</p>
           <p className="text-[10px] text-gray-400">No judgment. Just tell me.</p>
@@ -75,13 +76,13 @@ export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
             <button
               key={response.id}
               onClick={() => handleResponseSelect(response.id, response.text)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg border transition cursor-pointer ${
+              className={`w-full text-left px-3 py-2.5 rounded-lg border transition cursor-pointer flex items-center gap-2 ${
                 selectedResponse === response.id
                   ? 'border-blue-400 bg-blue-900/30 text-white'
                   : 'border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white'
               }`}
             >
-              <span className="mr-2">{response.emoji}</span>
+              <response.Icon className="w-4 h-4 text-gray-400" />
               {response.text}
             </button>
           ))}

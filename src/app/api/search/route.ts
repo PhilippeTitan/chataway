@@ -10,15 +10,50 @@ function extractVideoId(href: string): string | null {
   return match ? match[1] : null
 }
 
+const QUERY_ALIASES: Record<string, string> = {
+  squrting: 'squirting',
+  squirtting: 'squirting',
+}
+
+const GENERIC_TERMS = new Set(['video', 'videos', 'porn', 'xxx', 'adult'])
+
+function normalizeQuery(query: string): string {
+  const normalized = query.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  return normalized
+    .split(/\s+/)
+    .map(term => QUERY_ALIASES[term] || term)
+    .join(' ')
+}
+
+function curateResults(videos: Record<string, unknown>[], query: string): Record<string, unknown>[] {
+  const normalizedQuery = normalizeQuery(query)
+  const queryTerms = normalizedQuery.split(/\s+/).filter(term => term && !GENERIC_TERMS.has(term))
+  if (queryTerms.length === 0) return videos
+
+  return videos
+    .map((video, index) => {
+      const title = String(video.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+      const allTermsMatch = queryTerms.every(term => title.includes(term))
+      const matchedTerms = queryTerms.filter(term => title.includes(term)).length
+      const exactPhraseMatch = title.includes(normalizedQuery)
+      const score = (allTermsMatch ? 1000 : 0) + (exactPhraseMatch ? 500 : 0) + matchedTerms * 100 - index
+      return { video, score, allTermsMatch }
+    })
+    .filter(result => result.allTermsMatch)
+    .sort((first, second) => second.score - first.score)
+    .map(result => result.video)
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q') || 'amateur'
+  const normalizedQuery = normalizeQuery(query)
   const page = searchParams.get('page') || '1'
   const sort = searchParams.get('sort') || 'relevance'
 
   try {
     const url = new URL('https://www.xvideos.com/')
-    url.searchParams.set('k', query)
+    url.searchParams.set('k', normalizedQuery)
     url.searchParams.set('p', page)
     if (sort && sort !== 'relevance') {
       url.searchParams.set('sort', sort)
@@ -124,7 +159,7 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json(videos)
+    return NextResponse.json(curateResults(videos, normalizedQuery))
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json(

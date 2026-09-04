@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { SwitchIcon, HeartIcon } from './icons'
 
 interface RoleSwitchProps {
   initiator: 'you' | 'them'
@@ -33,23 +34,22 @@ export default function RoleSwitch({ initiator, onAccept, onDecline, onAftercare
   return (
     <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-4">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-lg">💜</span>
+        <HeartIcon className="w-5 h-5 text-purple-400" />
         <div>
           <p className="text-sm font-medium text-white">
             {initiator === 'you' ? 'They finished!' : 'You finished!'}
           </p>
-          <p className="text-[10px] text-gray-400">
-            {initiator === 'you' ? 'Want to switch roles?' : 'Want to switch roles?'}
-          </p>
+          <p className="text-[10px] text-gray-400">Want to switch roles?</p>
         </div>
       </div>
 
       <div className="space-y-2">
         <button
           onClick={handleAccept}
-          className="w-full px-3 py-2.5 rounded-lg bg-purple-600 text-xs font-semibold hover:bg-purple-500 transition cursor-pointer"
+          className="w-full px-3 py-2.5 rounded-lg bg-purple-600 text-xs font-semibold hover:bg-purple-500 transition cursor-pointer flex items-center justify-center gap-2"
         >
-          🔄 Switch roles
+          <SwitchIcon className="w-4 h-4" />
+          Switch roles
         </button>
         <button
           onClick={handleDecline}
@@ -59,9 +59,10 @@ export default function RoleSwitch({ initiator, onAccept, onDecline, onAftercare
         </button>
         <button
           onClick={onAftercare}
-          className="w-full px-3 py-2.5 rounded-lg border border-pink-500/30 text-xs text-pink-300 hover:bg-pink-950/30 transition cursor-pointer"
+          className="w-full px-3 py-2.5 rounded-lg border border-pink-500/30 text-xs text-pink-300 hover:bg-pink-950/30 transition cursor-pointer flex items-center justify-center gap-2"
         >
-          🌸 Aftercare mode
+          <HeartIcon className="w-4 h-4" />
+          Aftercare mode
         </button>
       </div>
     </div>

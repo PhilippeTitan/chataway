@@ -6,8 +6,8 @@ import { CloseIcon, ChatIcon, VideoIcon, SearchIcon } from '@/components/icons'
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
 import VideoCard from '@/components/VideoCard'
 import VideoPlayer from '@/components/VideoPlayer'
-import ControlPanel, { ControlState, ControlRole } from '@/components/ControlPanel'
 import ControlMode from '@/components/ControlMode'
+import { BoltIcon, SendIcon } from '@/components/icons'
 import { filterSeen, markSeen } from '@/utils/dedup'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/client'
 import { useUser } from '@/utils/supabase/useUser'
@@ -768,11 +768,11 @@ function WatchContent() {
           </div>
         </div>
 
-        {/* Side Panel: Control + Chat */}
+        {/* Side Panel */}
         {chatOpen && (
           <div className="w-80 border-l border-gray-800 flex flex-col shrink-0">
             {controlModeActive ? (
-              /* Control Mode: immersive quest/request system */
+              /* Control Mode */
               <ControlMode
                 controlOwner={controlOwner}
                 partnerOnline={partnerOnline}
@@ -789,62 +789,45 @@ function WatchContent() {
                 onDeactivate={deactivateControlMode}
               />
             ) : (
-              /* Default mode: ControlPanel + Chat */
+              /* Default: Chat + video proposals + activate button */
               <>
-                <div className="flex-1 overflow-y-auto">
-                  <ControlPanel
-                    controlState={incomingControlRequest ? 'pending' : controlRequestPending ? 'offering' : controlOwner === 'them' ? 'granted' : 'idle'}
-                    role={controlOwner === 'you' ? 'controller' : 'participant'}
-                    guidedMode={guidedMode}
-                    incomingSuggestion={incomingSuggestion}
-                    partnerOnline={partnerOnline}
-                    onOfferControl={requestControl}
-                    onReclaimControl={reclaimControl}
-                    onAcceptControl={acceptControl}
-                    onDeclineControl={declineControl}
-                    onSendSuggestion={sendSuggestion}
-                    onRespondToSuggestion={respondToSuggestion}
-                    onToggleGuidedMode={toggleGuidedMode}
-                    onChooseAction={chooseParticipantAction}
-                    onSendReaction={sendReaction}
-                  />
-
-                  {/* Activate Control Mode button */}
-                  {selectedVideo && (
-                    <div className="p-4">
-                      <button
-                        onClick={activateControlMode}
-                        className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-sm font-semibold hover:from-purple-500 hover:to-pink-500 transition-all cursor-pointer flex items-center justify-center gap-2"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        Enter Control Mode
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Video proposal cards */}
-                  {proposedVideo && (
-                    <div className="mx-4 mb-3 rounded-lg border border-blue-500/40 bg-blue-950/30 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-blue-300 mb-1">Your video proposal</p>
-                      <p className="text-xs text-white truncate">{proposedVideo.title}</p>
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        {videoProposalStatus === 'waiting' ? 'Waiting for partner approval...' : videoProposalStatus === 'declined' ? 'Partner declined this video.' : 'Partner approved this video.'}
-                      </p>
-                    </div>
-                  )}
-                  {incomingVideoProposal && (
-                    <div className="mx-4 mb-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-emerald-300 mb-1">Partner suggests</p>
-                      <p className="text-xs text-white truncate">{incomingVideoProposal.title}</p>
-                      <div className="flex gap-2 mt-2">
-                        <button onClick={() => respondToVideoProposal('accepted')} className="flex-1 px-2 py-1.5 rounded-md bg-emerald-600 text-xs hover:bg-emerald-500 transition cursor-pointer">Add video</button>
-                        <button onClick={() => respondToVideoProposal('declined')} className="flex-1 px-2 py-1.5 rounded-md border border-gray-700 text-xs text-gray-300 hover:text-white transition cursor-pointer">Decline</button>
+                {/* Video proposals */}
+                {(proposedVideo || incomingVideoProposal) && (
+                  <div className="p-3 border-b border-gray-800 space-y-3">
+                    {proposedVideo && (
+                      <div className="rounded-lg border border-blue-500/40 bg-blue-950/30 p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-blue-300 mb-1">Your video proposal</p>
+                        <p className="text-xs text-white truncate">{proposedVideo.title}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {videoProposalStatus === 'waiting' ? 'Waiting for partner approval...' : videoProposalStatus === 'declined' ? 'Partner declined.' : 'Partner approved.'}
+                        </p>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                    {incomingVideoProposal && (
+                      <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-emerald-300 mb-1">Partner suggests</p>
+                        <p className="text-xs text-white truncate">{incomingVideoProposal.title}</p>
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={() => respondToVideoProposal('accepted')} className="flex-1 px-2 py-1.5 rounded-md bg-emerald-600 text-xs hover:bg-emerald-500 transition cursor-pointer">Add video</button>
+                          <button onClick={() => respondToVideoProposal('declined')} className="flex-1 px-2 py-1.5 rounded-md border border-gray-700 text-xs text-gray-300 hover:text-white transition cursor-pointer">Decline</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Enter Control Mode button */}
+                {selectedVideo && (
+                  <div className="p-3 border-b border-gray-800">
+                    <button
+                      onClick={activateControlMode}
+                      className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-sm font-semibold hover:from-purple-500 hover:to-pink-500 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <BoltIcon className="w-5 h-5" />
+                      Enter Control Mode
+                    </button>
+                  </div>
+                )}
 
                 {/* Chat Header */}
                 <div className="p-3 border-b border-gray-800 flex justify-between items-center">
@@ -880,9 +863,7 @@ function WatchContent() {
                       className="flex-1 px-3 py-2 bg-gray-800 rounded text-sm text-white placeholder-gray-500 focus:outline-none"
                     />
                     <button onClick={sendMessage} className="px-3 py-2 bg-blue-600 rounded text-sm cursor-pointer hover:bg-blue-700">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9-2-9-18-9 18 9-2zm0 0v-8" />
-                      </svg>
+                      <SendIcon className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
