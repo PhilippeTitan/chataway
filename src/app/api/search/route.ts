@@ -1,32 +1,120 @@
 import { NextResponse } from 'next/server'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
+import * as crypto from 'crypto'
 
-const execFileAsync = promisify(execFile)
+function createHash(site: string, videoId: string): string {
+  return crypto.createHash('sha256').update(`${site}_${videoId}`).digest('hex').slice(0, 16)
+}
+
+function extractVideoId(href: string): string | null {
+  const match = href.match(/\/video[./]([a-zA-Z0-9]+)/)
+  return match ? match[1] : null
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q') || 'amateur'
   const page = searchParams.get('page') || '1'
   const sort = searchParams.get('sort') || 'relevance'
-  const site = searchParams.get('site') || 'all'
 
   try {
-    // For now, only xvideos_search.py exists
-    // In the future, we can add scripts for other sites
-    if (site === 'all' || site === 'xvideos') {
-      const { stdout } = await execFileAsync(
-        'python3',
-        ['scripts/xvideos_search.py', query, page, sort],
-        { timeout: 30000 }
-      )
-
-      const videos = JSON.parse(stdout)
-      return NextResponse.json(videos)
+    const url = new URL('https://www.xvideos.com/')
+    url.searchParams.set('k', query)
+    url.searchParams.set('p', page)
+    if (sort && sort !== 'relevance') {
+      url.searchParams.set('sort', sort)
     }
 
-    // For other sites, return empty for now
-    return NextResponse.json([])
+    const resp = await fetch(url.toString(), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+      signal: AbortSignal.timeout(15000),
+    })
+
+    if (!resp.ok) {
+      return NextResponse.json({ error: `HTTP ${resp.status}` }, { status: 502 })
+    }
+
+    const html = await resp.text()
+
+    // Parse video blocks using regex (no HTML parser needed in Node)
+    const videos: Record<string, unknown>[] = []
+    // XVideos wraps each result in a thumb-block div
+    const blockRegex = /<div\s+class="thumb-block"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g
+    let blockMatch
+
+    // Simpler approach: find all links to /video... and extract surrounding context
+    const linkRegex = /<a\s+[^>]*href="(\/video[a-zA-Z0-9]+\/[^"]+)"[^>]*title="([^"]*)"[^>]*>/g
+    let linkMatch
+
+    while ((linkMatch = linkRegex.exec(html)) !== null && videos.length < 20) {
+      const href = linkMatch[1]
+      const title = linkMatch[2]
+      const videoId = extractVideoId(href)
+      if (!videoId || !title) continue
+
+      // Don't add duplicates
+      if (videos.some(v => v.videoId === videoId)) continue
+
+      // Try to find thumbnail near this link
+      const nearbyStart = Math.max(0, linkMatch.index - 500)
+      const nearbyEnd = Math.min(html.length, linkMatch.index + 1000)
+      const nearby = html.slice(nearbyStart, nearbyEnd)
+
+      let thumbnail: string | null = null
+      // Look for data-src or src with an image URL
+      const thumbMatch = nearby.match(/(?:data-src|src)="(https?:\/\/[^"]*(?:\.jpg|\.jpeg|\.png|\.webp)[^"]*)"/)
+      if (thumbMatch) {
+        thumbnail = thumbMatch[1]
+      }
+
+      // Look for duration
+      let duration: string | null = null
+      const durMatch = nearby.match(/<span\s+class="duration"[^>]*>([^<]+)<\/span>/)
+      if (durMatch) {
+        duration = durMatch[1].trim()
+      }
+
+      videos.push({
+        videoId,
+        title,
+        duration,
+        views: null,
+        siteUrl: `https://www.xvideos.com${href}`,
+        site: 'xvideos',
+        hash: createHash('xvideos', videoId),
+        thumbnail,
+      })
+    }
+
+    // If regex approach failed, try a different pattern
+    if (videos.length === 0) {
+      // Look for JSON data in script tags
+      const jsonMatch = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/)
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1])
+          for (const v of parsed.slice(0, 20)) {
+            const videoId = v.id || extractVideoId(v.url || '')
+            if (!videoId) continue
+            videos.push({
+              videoId,
+              title: v.title || 'Untitled',
+              duration: v.duration || null,
+              views: v.views || null,
+              siteUrl: v.url || `https://www.xvideos.com/video${videoId}`,
+              site: 'xvideos',
+              hash: createHash('xvideos', videoId),
+              thumbnail: v.thumbnail || v.img || null,
+            })
+          }
+        } catch { /* ignore parse errors */ }
+      }
+    }
+
+    return NextResponse.json(videos)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json(

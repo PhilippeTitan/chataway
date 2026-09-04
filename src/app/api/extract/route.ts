@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import * as crypto from 'crypto'
 
 const execFileAsync = promisify(execFile)
 
@@ -49,11 +50,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { stdout } = await execFileAsync(
+    const { stdout, stderr } = await execFileAsync(
       'python3',
       ['scripts/extract_url.py', url],
       { timeout: 60000 }
     )
+
+    if (stderr) {
+      console.error('[extract] stderr:', stderr)
+    }
 
     const info = JSON.parse(stdout)
 
@@ -69,6 +74,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(info)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
+    console.error('[extract] failed:', message)
     return NextResponse.json(
       { error: 'Extraction failed', details: message },
       { status: 500 }
