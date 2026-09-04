@@ -2,11 +2,16 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { PlayIcon, HomeIcon, SearchIcon, Spinner } from '@/components/icons'
+import { PlayIcon, HomeIcon, SearchIcon, Spinner, GridIcon, FilmIcon } from '@/components/icons'
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
 import VideoCard from '@/components/VideoCard'
 import VideoPlayer from '@/components/VideoPlayer'
+import ClipCard from '@/components/ClipCard'
+import ClipsPlayer from '@/components/ClipsPlayer'
+import MasonryGrid from '@/components/MasonryGrid'
+import NichesBar from '@/components/NichesBar'
 import { filterSeen, markSeen } from '@/utils/dedup'
+import type { Clip } from '@/types/clips'
 
 interface Video {
   videoId: string
@@ -26,18 +31,84 @@ interface VideoWithStream extends Video {
 }
 
 const videoCache = new Map<string, Video[]>()
+const clipCache = new Map<string, Clip[]>()
 
 export default function Solo() {
   const router = useRouter()
   const [videos, setVideos] = useState<Video[]>([])
+  const [clips, setClips] = useState<Clip[]>([])
   const [selectedVideo, setSelectedVideo] = useState<VideoWithStream | null>(null)
+  const [selectedClipIndex, setSelectedClipIndex] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [searched, setSearched] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
+  const [viewMode, setViewMode] = useState<'grid' | 'feed'>('grid')
+  const [contentMode, setContentMode] = useState<'videos' | 'clips'>('videos')
+  const [selectedNiche, setSelectedNiche] = useState<string | null>(null)
   const lastSearch = useRef<{ query: string; filters: SearchFilters; page: number } | null>(null)
+
+  const searchClips = useCallback(async (query: string, action: string = 'search', append = false) => {
+    if (!query.trim() && action === 'search') return
+
+    if (append) setLoadingMore(true)
+    else lastSearch.current = { query, filters: { sortBy: 'relevance', site: 'all' }, page: 1 }
+
+    const cacheKey = `${action}_${query}`
+
+    if (!append && clipCache.has(cacheKey)) {
+      const cached = clipCache.get(cacheKey)!
+      setClips(cached)
+      setSearched(true)
+      setHasMore(true)
+      return
+    }
+
+    setLoading(true)
+    setSearched(true)
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        action,
+        count: '30',
+      })
+      const res = await fetch(`/api/search-redgifs?${params.toString()}`)
+      const data = await res.json()
+
+      if (Array.isArray(data)) {
+        const results: Clip[] = data.filter((c: Record<string, unknown>) => !c.error).map((c: Record<string, unknown>) => ({
+          clipId: String(c.clipId || ''),
+          title: String(c.title || ''),
+          username: String(c.username || ''),
+          thumbnail: c.thumbnail as string | null,
+          hdUrl: c.hdUrl as string | null,
+          sdUrl: c.sdUrl as string | null,
+          preview: c.preview as string | null,
+          duration: c.duration as number | null,
+          views: c.views as number | null,
+          likes: c.likes as number | null,
+          tags: (c.tags as string[]) || [],
+          verified: Boolean(c.verified),
+          site: 'redgifs',
+          hash: String(c.hash || ''),
+        }))
+
+        if (!append) clipCache.set(cacheKey, results)
+        setClips(prev => append
+          ? [...prev, ...results.filter(c => !prev.some(e => e.clipId === c.clipId))]
+          : results
+        )
+        setHasMore(data.length >= 30)
+      }
+    } catch (err) {
+      console.error('Clip search failed:', err)
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }, [])
 
   const searchVideos = useCallback(async (query: string, filters: SearchFilters, page = 1, append = false) => {
     if (!query.trim()) return
@@ -45,10 +116,8 @@ export default function Solo() {
     if (append) setLoadingMore(true)
     else lastSearch.current = { query, filters, page: 1 }
 
-    // Create cache key including filters
     const cacheKey = `${query}_${filters.sortBy}_${filters.site}`
 
-    // Check cache first
     if (!append && videoCache.has(cacheKey)) {
       const cached = videoCache.get(cacheKey)!
       const unseen = await filterSeen(cached)
@@ -85,8 +154,6 @@ export default function Solo() {
         }))
 
         if (!append) videoCache.set(cacheKey, results)
-
-        // Filter out seen videos
         const unseen = await filterSeen(results)
         setVideos(prev => append
           ? [...prev, ...unseen.filter(video => !prev.some(existing => existing.hash === video.hash))]
@@ -105,43 +172,53 @@ export default function Solo() {
 
   const handleSearch = useCallback((query: string, filters: SearchFilters) => {
     setSearchQuery(query)
-    searchVideos(query, filters)
-  }, [searchVideos])
+    if (contentMode === 'clips') {
+      searchClips(query, 'search')
+    } else {
+      searchVideos(query, filters)
+    }
+  }, [contentMode, searchClips, searchVideos])
+
+  const handleNicheSelect = useCallback((nicheId: string | null) => {
+    setSelectedNiche(nicheId)
+    if (nicheId) {
+      searchClips(nicheId, 'niche')
+    } else {
+      searchClips('trending', 'trending')
+    }
+  }, [searchClips])
 
   const loadMore = useCallback(() => {
     const currentSearch = lastSearch.current
     if (currentSearch && !loadingMore) {
-      searchVideos(currentSearch.query, currentSearch.filters, currentSearch.page + 1, true)
+      if (contentMode === 'clips') {
+        searchClips(currentSearch.query, 'search', true)
+      } else {
+        searchVideos(currentSearch.query, currentSearch.filters, currentSearch.page + 1, true)
+      }
     }
-  }, [loadingMore, searchVideos])
+  }, [loadingMore, contentMode, searchClips, searchVideos])
 
-  const handleVideoClick = useCallback(async (video: Video) => {
-    // Check if already seen
+  async function handleVideoClick(video: Video) {
     if (video.hash) {
       const isSeen = await filterSeen([video])
       if (isSeen.length === 0) {
-        // Already seen, skip to next
         const currentIndex = videos.findIndex(v => v.hash === video.hash)
         const nextVideo = videos[currentIndex + 1]
-        if (nextVideo) {
-          handleVideoClick(nextVideo)
-        }
+        if (nextVideo) handleVideoClick(nextVideo)
         return
       }
     }
 
-    // Extract stream URL
     setExtracting(true)
     try {
       const res = await fetch(`/api/extract?url=${encodeURIComponent(video.siteUrl || '')}&hash=${video.hash || ''}`)
       const data = await res.json()
 
       if (data.streamUrl) {
-        // Mark as seen
         if (video.hash && video.site && video.videoId) {
           await markSeen(video)
         }
-
         setSelectedVideo({
           ...video,
           streamUrl: data.streamUrl,
@@ -149,31 +226,37 @@ export default function Solo() {
           formats: data.formats,
         })
       } else {
-        // Extraction failed - skip to next video
-        console.warn('Extraction failed, skipping to next video')
         const currentIndex = videos.findIndex(v => v.hash === video.hash)
         const nextVideo = videos[currentIndex + 1]
-        if (nextVideo) {
-          handleVideoClick(nextVideo)
-        }
+        if (nextVideo) handleVideoClick(nextVideo)
       }
     } catch (err) {
       console.error('Extraction failed:', err)
-      // Skip to next on error
       const currentIndex = videos.findIndex(v => v.hash === video.hash)
       const nextVideo = videos[currentIndex + 1]
-      if (nextVideo) {
-        handleVideoClick(nextVideo)
-      }
+      if (nextVideo) handleVideoClick(nextVideo)
     }
     setExtracting(false)
-  }, [videos])
+  }
+
+  function handleClipClick(clip: Clip, index: number) {
+    setSelectedClipIndex(index)
+  }
 
   const handleBack = useCallback(() => {
     setSelectedVideo(null)
   }, [])
 
-  // If video is selected, show player
+  const toggleContentMode = useCallback(() => {
+    setContentMode(prev => {
+      const next = prev === 'videos' ? 'clips' : 'videos'
+      if (next === 'clips' && clips.length === 0) {
+        searchClips('trending', 'trending')
+      }
+      return next
+    })
+  }, [clips.length, searchClips])
+
   if (selectedVideo && selectedVideo.streamUrl) {
     return (
       <VideoPlayer
@@ -183,6 +266,16 @@ export default function Solo() {
         duration={selectedVideo.duration || undefined}
         onBack={handleBack}
         formats={selectedVideo.formats}
+      />
+    )
+  }
+
+  if (selectedClipIndex !== null) {
+    return (
+      <ClipsPlayer
+        clips={clips}
+        startIndex={selectedClipIndex}
+        onClose={() => setSelectedClipIndex(null)}
       />
     )
   }
@@ -212,13 +305,56 @@ export default function Solo() {
 
       <div className="p-6">
         <div className="max-w-6xl mx-auto">
-          {/* Autocomplete Search */}
-          <div className="mb-8">
+          {/* Content Mode Toggle + Search */}
+          <div className="mb-6">
+            {/* Mode toggle */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="inline-flex rounded-lg border border-amber-900/35 bg-[#1c130d]/80 p-1">
+                <button
+                  onClick={() => setContentMode('videos')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition cursor-pointer flex items-center gap-2 ${
+                    contentMode === 'videos'
+                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/25'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <GridIcon className="w-4 h-4" />
+                  Videos
+                </button>
+                <button
+                  onClick={toggleContentMode}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition cursor-pointer flex items-center gap-2 ${
+                    contentMode === 'clips'
+                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/25'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <FilmIcon className="w-4 h-4" />
+                  Clips
+                </button>
+              </div>
+
+              {contentMode === 'videos' && (
+                <div className="inline-flex rounded-lg border border-amber-900/35 bg-[#1c130d]/80 p-1 ml-auto">
+                  <button onClick={() => setViewMode('grid')} className={`px-3 py-1.5 rounded-md text-xs transition cursor-pointer ${viewMode === 'grid' ? 'bg-amber-600 text-white' : 'text-gray-400 hover:text-white'}`}>Grid</button>
+                  <button onClick={() => setViewMode('feed')} className={`px-3 py-1.5 rounded-md text-xs transition cursor-pointer ${viewMode === 'feed' ? 'bg-amber-600 text-white' : 'text-gray-400 hover:text-white'}`}>Feed</button>
+                </div>
+              )}
+            </div>
+
+            {/* Search */}
             <SearchAutocomplete
               onSearch={handleSearch}
-              placeholder="Search videos..."
+              placeholder={contentMode === 'clips' ? 'Search clips...' : 'Search videos...'}
               autoFocus
             />
+
+            {/* Niches bar (only in clips mode) */}
+            {contentMode === 'clips' && (
+              <div className="mt-4">
+                <NichesBar selectedNiche={selectedNiche} onSelect={handleNicheSelect} />
+              </div>
+            )}
           </div>
 
           {/* Extracting overlay */}
@@ -232,18 +368,34 @@ export default function Solo() {
           )}
 
           {/* Loading skeleton */}
-          {loading && videos.length === 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="bg-gray-900 rounded-lg overflow-hidden animate-slide-up">
-                  <div className="aspect-video bg-gray-800 animate-shimmer" />
-                  <div className="p-3 space-y-2">
-                    <div className="h-4 bg-gray-800 rounded w-3/4 animate-shimmer" />
-                    <div className="h-3 bg-gray-800 rounded w-1/2 animate-shimmer" />
+          {loading && videos.length === 0 && clips.length === 0 && (
+            contentMode === 'clips' ? (
+              <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 stagger-children">
+                {[...Array(10)].map((_, i) => (
+                  <div key={i} className="break-inside-avoid mb-3">
+                    <div className="bg-gray-900 rounded-xl overflow-hidden animate-slide-up" style={{ aspectRatio: '9/14' }}>
+                      <div className="w-full h-full bg-gray-800 animate-shimmer" />
+                    </div>
+                    <div className="px-1 mt-2 space-y-1.5">
+                      <div className="h-3 bg-gray-800 rounded w-2/3 animate-shimmer" />
+                      <div className="h-2.5 bg-gray-800 rounded w-1/2 animate-shimmer" />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="bg-gray-900 rounded-lg overflow-hidden animate-slide-up">
+                    <div className="aspect-video bg-gray-800 animate-shimmer" />
+                    <div className="p-3 space-y-2">
+                      <div className="h-4 bg-gray-800 rounded w-3/4 animate-shimmer" />
+                      <div className="h-3 bg-gray-800 rounded w-1/2 animate-shimmer" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
 
           {/* Empty State */}
@@ -251,21 +403,28 @@ export default function Solo() {
             <div className="text-center py-20 text-gray-500">
               <SearchIcon className="w-16 h-16 mx-auto mb-4 text-gray-600" />
               <p className="text-lg">Start typing to search</p>
-              <p className="text-sm mt-2">Videos from XVideos</p>
+              <p className="text-sm mt-2">
+                {contentMode === 'clips' ? 'Clips from RedGifs' : 'Videos from XVideos'}
+              </p>
             </div>
           )}
 
           {/* No Results */}
-          {searched && !loading && videos.length === 0 && (
+          {searched && !loading && videos.length === 0 && clips.length === 0 && (
             <div className="text-center py-20 text-gray-500">
-              <p className="text-lg">No new videos found</p>
+              <p className="text-lg">No new content found</p>
               <p className="text-sm mt-2">Try a different search term</p>
             </div>
           )}
 
-          {/* Video Grid */}
-          {videos.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children">
+          {/* Clips Masonry Grid */}
+          {contentMode === 'clips' && clips.length > 0 && (
+            <MasonryGrid clips={clips} onClipClick={handleClipClick} />
+          )}
+
+          {/* Videos Grid */}
+          {contentMode === 'videos' && videos.length > 0 && (
+            <div className={viewMode === 'feed' ? 'max-w-md mx-auto space-y-8' : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children'}>
               {videos.map((video) => (
                 <div key={`${video.hash || video.videoId}_${video.thumbnail || ''}`} className="animate-slide-up">
                   <VideoCard
@@ -276,6 +435,7 @@ export default function Solo() {
                     duration={video.duration}
                     views={video.views}
                     site={video.site}
+                    variant={viewMode}
                     onClick={() => handleVideoClick(video)}
                   />
                 </div>
@@ -283,7 +443,8 @@ export default function Solo() {
             </div>
           )}
 
-          {searched && videos.length > 0 && hasMore && (
+          {/* Load More */}
+          {searched && ((contentMode === 'clips' && clips.length > 0) || (contentMode === 'videos' && videos.length > 0)) && hasMore && (
             <div className="flex justify-center py-10">
               <button
                 onClick={loadMore}

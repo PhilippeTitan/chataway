@@ -12,6 +12,7 @@ interface VideoCardProps {
   views?: string | null
   site?: string
   siteUrl?: string
+  variant?: 'grid' | 'feed'
   onClick: () => void
 }
 
@@ -23,6 +24,7 @@ export default function VideoCard({
   duration,
   views,
   site,
+  variant = 'grid',
   onClick,
 }: VideoCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false)
@@ -44,7 +46,7 @@ export default function VideoCard({
       className="group cursor-pointer"
     >
       {/* Thumbnail */}
-      <div className="aspect-video bg-[#1a120c] relative rounded-lg overflow-hidden mb-2">
+      <div className={`${variant === 'feed' ? 'aspect-[9/14] rounded-2xl' : 'aspect-video rounded-lg'} bg-[#1a120c] relative overflow-hidden mb-2`}>
         {imageSrc && !imgError ? (
           <>
             <img
@@ -90,7 +92,7 @@ export default function VideoCard({
         )}
 
         {/* Bottom gradient */}
-        <div className={`absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent transition-opacity duration-300 ${
+        <div className={`absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300 ${
           isHovering ? 'opacity-100' : 'opacity-0'
         }`} />
 
@@ -98,7 +100,7 @@ export default function VideoCard({
         <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
           isHovering ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
         }`}>
-          <div className="w-12 h-12 bg-white/15 backdrop-blur-sm rounded-full flex items-center justify-center">
+          <div className={`${variant === 'feed' ? 'w-14 h-14' : 'w-12 h-12'} bg-white/15 backdrop-blur-sm rounded-full flex items-center justify-center`}>
             <PlayIcon className="w-6 h-6 text-white ml-0.5" />
           </div>
         </div>
@@ -148,7 +150,7 @@ export default function VideoCard({
       </div>
 
       {/* Title */}
-      <h3 className="text-[13px] font-medium text-[#e5d8ca] leading-snug mt-1 px-0.5 line-clamp-2 group-hover:text-white transition-colors">
+      <h3 className={`${variant === 'feed' ? 'text-sm' : 'text-[13px]'} font-medium text-[#e5d8ca] leading-snug mt-1 px-0.5 line-clamp-2 group-hover:text-white transition-colors`}>
         {title}
       </h3>
     </div>

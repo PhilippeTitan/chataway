@@ -54,8 +54,7 @@ function saveFilters(filters: SearchFilters) {
 export default function SearchAutocomplete({ onSearch, placeholder = 'Search videos...', autoFocus = false }: SearchAutocompleteProps) {
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [trending, setTrending] = useState<Suggestion[]>([])
-  const [history, setHistory] = useState<string[]>([])
+  const [history, setHistory] = useState<string[]>(() => getHistory())
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(-1)
   const [filters, setFilters] = useState<SearchFilters>(() => {
@@ -68,25 +67,6 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
   const filterPanelRef = useRef<HTMLDivElement>(null)
   const fetchTimer = useRef<NodeJS.Timeout | null>(null)
   const suggestionRequest = useRef<AbortController | null>(null)
-
-  // Load history on mount
-  useEffect(() => {
-    setHistory(getHistory())
-  }, [])
-
-  // Fetch trending when input first focused with empty query
-  useEffect(() => {
-    const fetchTrending = async () => {
-      try {
-        const res = await fetch('/api/suggestions?q=')
-        const data = await res.json()
-        setTrending(data.suggestions || [])
-      } catch (err) {
-        console.error(err)
-      }
-    }
-    fetchTrending()
-  }, [])
 
   // Fetch suggestions when query changes
   useEffect(() => {
@@ -161,10 +141,9 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
     if (query.length === 0 && history.length > 0) {
       items.push(...history.slice(0, 3).map(h => ({ text: h, type: 'history' })))
     }
-    const src = query.length > 0 ? suggestions : trending
-    items.push(...src.slice(0, 8))
+    items.push(...suggestions.slice(0, 30))
     return items
-  }, [history, query, suggestions, trending])
+  }, [history, query, suggestions])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const items = getAllItems()

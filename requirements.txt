@@ -1,3 +1,4 @@
 yt-dlp>=2024.1.1
 curl_cffi>=0.5.0
 beautifulsoup4>=4.12.0
+redgifs>=3.0.0

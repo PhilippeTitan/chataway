@@ -57,6 +57,7 @@ function WatchContent() {
   const [searched, setSearched] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
+  const [viewMode, setViewMode] = useState<'grid' | 'feed'>('grid')
   const [controlOwner, setControlOwner] = useState<'you' | 'them'>('you')
   const [partnerOnline, setPartnerOnline] = useState(true)
   const [controlModeActive, setControlModeActive] = useState(false)
@@ -574,10 +575,10 @@ function WatchContent() {
   // If video is selected, show player
   if (selectedVideo) {
     return (
-      <div className="min-h-dvh bg-black text-white flex flex-col lg:flex-row overflow-hidden">
+      <div className="min-h-dvh bg-black text-white grid grid-rows-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_20rem] md:grid-rows-1 overflow-hidden">
         {videoValidator}
         {/* Main Video Area */}
-        <div className="flex-1 min-h-[48dvh] lg:min-h-0 flex flex-col min-w-0">
+        <div className="min-h-[48dvh] md:min-h-0 min-w-0 flex flex-col">
           <div className={`flex-1 min-h-0 ${secondVideo ? 'grid grid-rows-2 gap-px bg-gray-800' : ''}`}>
             {selectedVideo.streamUrl ? (
               <VideoPlayer
@@ -634,7 +635,7 @@ function WatchContent() {
 
         {/* Side Panel */}
         {chatOpen && (
-          <div className="w-full lg:w-80 max-h-[50dvh] lg:max-h-none min-h-0 border-t lg:border-t-0 lg:border-l border-gray-800 flex flex-col shrink-0">
+          <div className="w-full md:w-auto md:h-full max-h-[50dvh] md:max-h-none min-h-0 border-t md:border-t-0 md:border-l border-gray-800 flex flex-col">
             {controlModeActive ? (
               /* Control Mode */
               <ControlMode
@@ -745,10 +746,10 @@ function WatchContent() {
   }
 
   return (
-    <div className="min-h-dvh bg-black text-white flex flex-col lg:flex-row overflow-hidden">
+    <div className="min-h-dvh bg-black text-white grid grid-rows-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_20rem] md:grid-rows-1 overflow-hidden">
       {videoValidator}
       {/* Main Video Area */}
-      <div className="flex-1 min-h-0 flex flex-col min-w-0">
+      <div className="min-h-0 min-w-0 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
           <h2 className="text-xl font-bold flex items-center gap-2">
@@ -788,6 +789,13 @@ function WatchContent() {
               placeholder="Search videos to watch together..."
               autoFocus
             />
+          </div>
+
+          <div className="flex justify-end mb-6">
+            <div className="inline-flex rounded-lg border border-gray-800 bg-gray-950/80 p-1" aria-label="Browse mode">
+              <button onClick={() => setViewMode('grid')} className={`px-3 py-1.5 rounded-md text-xs transition cursor-pointer ${viewMode === 'grid' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}>Grid</button>
+              <button onClick={() => setViewMode('feed')} className={`px-3 py-1.5 rounded-md text-xs transition cursor-pointer ${viewMode === 'feed' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}>Feed</button>
+            </div>
           </div>
 
           {(proposedVideo || incomingVideoProposal) && (
@@ -847,7 +855,7 @@ function WatchContent() {
 
           {/* Video Grid */}
           {videos.length > 0 && (
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className={viewMode === 'feed' ? 'max-w-md mx-auto space-y-8' : 'grid grid-cols-2 lg:grid-cols-3 gap-4'}>
               {videos.map((video) => (
                 <VideoCard
                   key={`${video.hash || video.videoId}_${video.thumbnail || ''}`}
@@ -858,6 +866,7 @@ function WatchContent() {
                   duration={video.duration}
                   views={video.views}
                   site={video.site}
+                  variant={viewMode}
                   onClick={() => handleVideoClick(video)}
                 />
               ))}
@@ -880,7 +889,7 @@ function WatchContent() {
 
       {/* Side Chat */}
       {chatOpen && (
-        <div className="w-full lg:w-80 max-h-[45dvh] lg:max-h-none min-h-0 border-t lg:border-t-0 lg:border-l border-gray-800 flex flex-col shrink-0">
+        <div className="w-full md:w-auto md:h-full max-h-[45dvh] md:max-h-none min-h-0 border-t md:border-t-0 md:border-l border-gray-800 flex flex-col">
           <div className="p-3 border-b border-gray-800 flex justify-between items-center">
             <span className="font-semibold text-sm flex items-center gap-2">
               <ChatIcon className="w-4 h-4" /> Live Chat

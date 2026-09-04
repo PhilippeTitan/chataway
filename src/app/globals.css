@@ -203,3 +203,59 @@ body {
   transform: scale(0.96);
 }
 
+/* Hide scrollbar for niche pills */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Masonry columns */
+@supports (column-count: 2) {
+  .masonry-grid {
+    column-count: 2;
+    column-gap: 0.75rem;
+  }
+  @media (min-width: 640px) {
+    .masonry-grid { column-count: 3; }
+  }
+  @media (min-width: 768px) {
+    .masonry-grid { column-count: 4; }
+  }
+  @media (min-width: 1024px) {
+    .masonry-grid { column-count: 5; }
+  }
+}
+
+/* Clip player swipe hint animation */
+@keyframes swipe-hint {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(-8px); opacity: 1; }
+}
+.animate-swipe-hint {
+  animation: swipe-hint 2s ease-in-out infinite;
+}
+
+/* Clip player slide transitions */
+@keyframes clip-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes clip-slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-clip-slide-up {
+  animation: clip-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-clip-slide-down {
+  animation: clip-slide-down 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Niche pill glow effect */
+.niche-pill-active {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), 0 0 40px rgba(245, 158, 11, 0.1);
+}
+

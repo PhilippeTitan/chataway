@@ -15,7 +15,7 @@ const QUERY_ALIASES: Record<string, string> = {
   squirtting: 'squirting',
 }
 
-const GENERIC_TERMS = new Set(['video', 'videos', 'porn', 'xxx', 'adult'])
+const GENERIC_TERMS = new Set(['video', 'videos'])
 
 function normalizeQuery(query: string): string {
   const normalized = query.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
