@@ -182,7 +182,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
     }
   }, [getAllItems, highlighted, handleSelect])
 
-  const showDropdown = open
+  const showDropdown = open && query.trim().length > 0
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -327,15 +327,15 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
             </div>
           )}
 
-          {/* Suggestions / Trending */}
+          {/* Literal query autocomplete */}
           <div className="p-2">
             <div className="px-4 py-1.5">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                {query.length > 0 ? 'Suggestions' : 'Trending'}
+                Search this query
               </span>
             </div>
-            {(query.length > 0 ? suggestions : trending).slice(0, 8).map((s, i) => {
-              const idx = query.length === 0 ? history.length + i : i
+            {suggestions.slice(0, 1).map((s, i) => {
+              const idx = i
               return (
                 <button
                   key={`s-${i}`}
@@ -354,7 +354,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
                 </button>
               )
             })}
-            {(query.length > 0 ? suggestions : trending).length === 0 && (
+            {suggestions.length === 0 && (
               <div className="px-4 py-4 text-sm text-gray-500 text-center">Type to search</div>
             )}
           </div>

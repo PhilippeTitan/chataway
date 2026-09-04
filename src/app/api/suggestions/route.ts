@@ -1,44 +1,48 @@
 import { NextResponse } from 'next/server'
 
-interface CuratedIntent {
+interface AutocompleteIntent {
   term: string
-  variants: string[]
+  aliases: string[]
+  completions: string[]
 }
 
-const CURATED_INTENTS: CuratedIntent[] = [
+const AUTOCOMPLETE_INTENTS: AutocompleteIntent[] = [
+  {
+    term: 'ebony',
+    aliases: ['ebondy'],
+    completions: ['squirting', 'compilation', 'solo', 'pov'],
+  },
   {
     term: 'squirting',
-    variants: ['orgasm', 'compilation', 'pov', 'solo', 'homemade'],
+    aliases: ['squrting', 'squirtting', 'squi', 'sq'],
+    completions: ['compilation', 'solo', 'pov', 'homemade'],
+  },
+  {
+    term: 'latina',
+    aliases: ['lati', 'latin'],
+    completions: ['compilation', 'fucked', 'solo', 'pov'],
   },
 ]
 
-const QUERY_ALIASES: Record<string, string> = {
-  squrting: 'squirting',
-  squirtting: 'squirting',
+function findIntent(term: string): AutocompleteIntent | null {
+  const normalized = term.toLowerCase()
+  return AUTOCOMPLETE_INTENTS.find(intent =>
+    intent.term.startsWith(normalized) ||
+    intent.aliases.some(alias => alias.startsWith(normalized) || normalized.startsWith(alias))
+  ) || null
 }
 
-function resolveCuratedQuery(query: string): { corrected: string; variants: string[] } | null {
+function getIntentCompletions(query: string): string[] {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
-  const intentIndex = terms.findIndex(term => {
-    const normalized = QUERY_ALIASES[term] || term
-    return CURATED_INTENTS.some(intent => intent.term.startsWith(normalized) && normalized.length >= 3)
-  })
+  const intentIndex = terms.findIndex(term => findIntent(term) !== null)
+  if (intentIndex < 0) return []
 
-  if (intentIndex < 0) return null
-
-  const typedTerm = terms[intentIndex]
-  const intent = CURATED_INTENTS.find(candidate => {
-    const normalized = QUERY_ALIASES[typedTerm] || typedTerm
-    return candidate.term.startsWith(normalized) && normalized.length >= 3
-  })!
+  const intent = findIntent(terms[intentIndex])!
   const correctedTerms = [...terms]
   correctedTerms[intentIndex] = intent.term
   const corrected = correctedTerms.join(' ')
 
-  return {
-    corrected,
-    variants: intent.variants.map(variant => `${corrected} ${variant}`),
-  }
+  return [corrected, ...intent.completions.map(completion => `${corrected} ${completion}`)]
 }
 
 export async function GET(request: Request) {
@@ -49,20 +53,11 @@ export async function GET(request: Request) {
     let suggestions: { text: string; type: string }[] = []
 
     if (q.length > 0) {
-      const curated: Record<string, string[]> = {
-        squirting: ['squirting orgasm', 'female squirting', 'squirting compilation', 'squirting pov', 'squirting homemade', 'squirting solo'],
-      }
-      const curatedQuery = resolveCuratedQuery(q)
-      const related = curatedQuery
-        ? curatedQuery.variants
-        : curated[q.toLowerCase()] || [
-          `${q} amateur`, `${q} homemade`, `${q} compilation`,
-          `${q} solo`, `${q} pov`, `${q} orgasm`, `${q} mature`,
-        ]
-      suggestions = [curatedQuery?.corrected || q, ...related]
+      const completions = getIntentCompletions(q)
+      suggestions = [q, ...completions]
         .filter((text, index, all) => all.indexOf(text) === index)
         .slice(0, 8)
-        .map((text, index) => ({ text, type: index === 0 ? 'query' : 'suggestion' }))
+        .map((text, index) => ({ text, type: index === 0 ? 'query' : 'completion' }))
     } else {
       // Trending/default suggestions
       const trending = [

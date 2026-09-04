@@ -234,3 +234,24 @@ export const HandIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
   </svg>
 )
+
+export const Spinner = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={`${className} animate-spin-slow`} fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+    <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+  </svg>
+)
+
+export const DotsLoader = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="5" cy="12" r="2.5" opacity="0.3">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" repeatCount="indefinite" begin="0s" />
+    </circle>
+    <circle cx="12" cy="12" r="2.5" opacity="0.3">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" repeatCount="indefinite" begin="0.2s" />
+    </circle>
+    <circle cx="19" cy="12" r="2.5" opacity="0.3">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" repeatCount="indefinite" begin="0.4s" />
+    </circle>
+  </svg>
+)

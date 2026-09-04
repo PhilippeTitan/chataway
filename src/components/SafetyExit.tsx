@@ -42,17 +42,17 @@ export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
 
   if (step === 'waiting') {
     return (
-      <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-4">
+      <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-4 animate-scale-in">
         <div className="flex items-center gap-2 mb-2">
           <StopIcon className="w-5 h-5 text-blue-400" />
-          <p className="text-sm font-medium text-white">Message sent</p>
+          <p className="text-sm font-medium text-white animate-fade-in">Message sent</p>
         </div>
-        <p className="text-xs text-gray-400 mb-3">
+        <p className="text-xs text-gray-400 mb-3 animate-fade-in" style={{ animationDelay: '100ms' }}>
           Your partner will see this. Take your time.
         </p>
         <button
           onClick={onClose}
-          className="w-full px-3 py-2 rounded-lg bg-gray-800 text-xs text-gray-300 hover:bg-gray-700 transition cursor-pointer"
+          className="w-full px-3 py-2 rounded-lg bg-gray-800 text-xs text-gray-300 hover:bg-gray-700 transition-all cursor-pointer btn-press"
         >
           Close
         </button>
@@ -61,7 +61,7 @@ export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
   }
 
   return (
-    <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-4">
+    <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-4 animate-scale-in">
       <div className="flex items-center gap-2 mb-3">
         <StopIcon className="w-5 h-5 text-blue-400" />
         <div>
@@ -71,12 +71,12 @@ export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
       </div>
 
       {step === 'initial' && (
-        <div className="space-y-2">
+        <div className="space-y-2 stagger-children">
           {CARE_RESPONSES.map((response) => (
             <button
               key={response.id}
               onClick={() => handleResponseSelect(response.id, response.text)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg border transition cursor-pointer flex items-center gap-2 ${
+              className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-200 cursor-pointer flex items-center gap-2 btn-press animate-slide-up ${
                 selectedResponse === response.id
                   ? 'border-blue-400 bg-blue-900/30 text-white'
                   : 'border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white'
@@ -90,7 +90,7 @@ export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
       )}
 
       {step === 'response' && (
-        <div className="space-y-3">
+        <div className="space-y-3 animate-fade-in">
           <p className="text-xs text-gray-400">What's making you uncomfortable?</p>
           <input
             type="text"
@@ -98,20 +98,20 @@ export default function SafetyExit({ onSend, onClose }: SafetyExitProps) {
             onChange={(e) => setCustomReason(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCustomSubmit()}
             placeholder="Tell me more..."
-            className="w-full px-3 py-2 bg-gray-800 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-gray-800 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
             autoFocus
           />
           <div className="flex gap-2">
             <button
               onClick={handleCustomSubmit}
               disabled={!customReason.trim()}
-              className="flex-1 px-3 py-2 rounded-lg bg-blue-600 text-xs font-semibold hover:bg-blue-500 disabled:opacity-50 transition cursor-pointer"
+              className="flex-1 px-3 py-2 rounded-lg bg-blue-600 text-xs font-semibold hover:bg-blue-500 disabled:opacity-50 transition-all cursor-pointer btn-press"
             >
               Send
             </button>
             <button
               onClick={() => setStep('initial')}
-              className="px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-300 hover:text-white transition cursor-pointer"
+              className="px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-300 hover:text-white transition-all cursor-pointer btn-press"
             >
               Back
             </button>
