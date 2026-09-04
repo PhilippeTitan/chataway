@@ -21,8 +21,8 @@ export async function GET(request: Request) {
       url: v.url,
       thumbnail: v.default_thumb || v.thumb,
       duration: v.duration,
-      views: typeof v.views === 'number' ? v.views.toLocaleString() : v.views,
-      rating: v.rating ? `${Math.round(v.rating)}%` : null,
+      views: Number(v.views || 0).toLocaleString(),
+      rating: v.rating ? `${Math.round(Number(v.rating))}%` : null,
     }))
     
     return NextResponse.json(videos)

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { SearchIcon, PlayIcon, BackIcon, HomeIcon } from '@/components/icons'
+import { PlayIcon, BackIcon, HomeIcon, SearchIcon } from '@/components/icons'
+import SearchAutocomplete from '@/components/SearchAutocomplete'
 
 const videoCache = new Map<string, Record<string, unknown>[]>()
 
@@ -22,7 +23,6 @@ export default function Solo() {
   const [videos, setVideos] = useState<VideoWithPreview[]>([])
   const [selectedVideo, setSelectedVideo] = useState<VideoWithPreview | null>(null)
   const [loading, setLoading] = useState(false)
-  const [volume, setVolume] = useState(80)
   const [searched, setSearched] = useState(false)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const [previewFrame, setPreviewFrame] = useState(0)
@@ -57,10 +57,8 @@ export default function Solo() {
     setLoading(false)
   }, [])
 
-  // Generate preview thumbnail variants from main thumbnail
   const generatePreviewThumbs = (thumbUrl: string): string[] => {
     if (!thumbUrl) return []
-    // Pornhub thumbnails usually have numbered variants
     const thumbs = []
     for (let i = 1; i <= 8; i++) {
       thumbs.push(thumbUrl.replace(/\d+\.jpg/, `${i}.jpg`))
@@ -68,7 +66,6 @@ export default function Solo() {
     return thumbs
   }
 
-  // Animate preview on hover
   useEffect(() => {
     if (hoveredIndex !== null) {
       setPreviewFrame(0)
@@ -86,14 +83,10 @@ export default function Solo() {
     }
   }, [hoveredIndex])
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.length >= 2) {
-        searchVideos(searchQuery)
-      }
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery, searchVideos])
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+    searchVideos(query)
+  }, [searchVideos])
 
   const selectVideo = (video: VideoWithPreview) => {
     setSelectedVideo(video)
@@ -132,27 +125,16 @@ export default function Solo() {
       {!selectedVideo ? (
         <div className="p-6">
           <div className="max-w-6xl mx-auto">
-            {/* Search */}
-            <div className="relative mb-8">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                <SearchIcon className="w-5 h-5" />
-              </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Type to search..."
-                className="w-full pl-12 pr-6 py-4 bg-gray-900 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg"
+            {/* Autocomplete Search */}
+            <div className="mb-8">
+              <SearchAutocomplete
+                onSearch={handleSearch}
+                placeholder="Search videos..."
                 autoFocus
               />
-              {loading && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                  <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              )}
             </div>
 
-            {/* Skeleton Loading */}
+            {/* Loading */}
             {loading && videos.length === 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {[...Array(8)].map((_, i) => (
@@ -196,7 +178,6 @@ export default function Solo() {
                   <div className="aspect-video bg-gray-800 relative overflow-hidden">
                     {video.thumbnail ? (
                       <>
-                        {/* Main Thumbnail */}
                         <img 
                           src={hoveredIndex === i ? getPreviewThumb(video, previewFrame) : video.thumbnail}
                           alt="" 
@@ -206,12 +187,10 @@ export default function Solo() {
                           loading="lazy"
                         />
                         
-                        {/* Hover Overlay */}
                         <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300 ${
                           hoveredIndex === i ? 'opacity-100' : 'opacity-0'
                         }`}></div>
                         
-                        {/* Play Button - Always visible on hover */}
                         <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
                           hoveredIndex === i ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
                         }`}>
@@ -220,7 +199,6 @@ export default function Solo() {
                           </div>
                         </div>
 
-                        {/* Preview Frame Indicator */}
                         {hoveredIndex === i && (
                           <div className="absolute bottom-2 left-2 right-2 flex gap-1">
                             {[...Array(8)].map((_, frame) => (
@@ -234,14 +212,12 @@ export default function Solo() {
                           </div>
                         )}
 
-                        {/* Duration Badge */}
                         {video.duration && (
                           <div className="absolute top-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-medium">
                             {String(video.duration)}
                           </div>
                         )}
 
-                        {/* Rating Badge */}
                         {video.rating && (
                           <div className="absolute top-2 left-2 bg-yellow-500/90 px-2 py-1 rounded text-xs font-bold text-black">
                             {String(video.rating)}
@@ -255,7 +231,6 @@ export default function Solo() {
                     )}
                   </div>
                   
-                  {/* Video Info */}
                   <div className="p-3">
                     <h3 className={`font-medium text-sm line-clamp-2 transition-colors ${
                       hoveredIndex === i ? 'text-purple-400' : 'text-white'
@@ -272,9 +247,8 @@ export default function Solo() {
           </div>
         </div>
       ) : (
-        /* Video Player - Instant */
+        /* Video Player */
         <div className="fixed inset-0 bg-black z-50">
-          {/* Back Button */}
           <button 
             onClick={() => setSelectedVideo(null)}
             className="absolute top-4 left-4 z-50 px-4 py-2 bg-black/50 backdrop-blur-sm rounded-lg hover:bg-black/70 transition cursor-pointer flex items-center gap-2"
@@ -282,7 +256,6 @@ export default function Solo() {
             <BackIcon className="w-5 h-5" /> Back
           </button>
 
-          {/* Full Screen Player */}
           <iframe
             src={`https://www.pornhub.com/embed/${selectedVideo.videoId}?autoplay=1`}
             className="w-full h-full"
@@ -291,7 +264,6 @@ export default function Solo() {
             frameBorder={0}
           />
 
-          {/* Video Info Overlay */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/50 to-transparent p-6 pointer-events-none">
             <h3 className="text-lg font-semibold mb-1">{selectedVideo.title}</h3>
             <div className="flex gap-4 text-sm text-gray-400">

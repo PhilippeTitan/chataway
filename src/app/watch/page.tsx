@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { SearchIcon, PlayIcon, CloseIcon, ChatIcon, BackIcon, VideoIcon } from '@/components/icons'
+import { PlayIcon, CloseIcon, ChatIcon, BackIcon, VideoIcon, SearchIcon } from '@/components/icons'
+import SearchAutocomplete from '@/components/SearchAutocomplete'
 
 const videoCache = new Map<string, Record<string, unknown>[]>()
 
@@ -86,14 +87,10 @@ export default function Watch() {
     }
   }, [hoveredIndex])
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.length >= 2) {
-        searchVideos(searchQuery)
-      }
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery, searchVideos])
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+    searchVideos(query)
+  }, [searchVideos])
 
   const selectVideo = (video: VideoWithPreview) => {
     setSelectedVideo(video)
@@ -140,27 +137,16 @@ export default function Watch() {
 
         {!selectedVideo ? (
           <div className="flex-1 overflow-y-auto p-6">
-            {/* Search */}
-            <div className="relative mb-6">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                <SearchIcon className="w-5 h-5" />
-              </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Type to search..."
-                className="w-full pl-12 pr-6 py-4 bg-gray-900 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg"
+            {/* Autocomplete Search */}
+            <div className="mb-6">
+              <SearchAutocomplete
+                onSearch={handleSearch}
+                placeholder="Search videos..."
                 autoFocus
               />
-              {loading && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                  <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              )}
             </div>
 
-            {/* Skeleton Loading */}
+            {/* Loading */}
             {loading && videos.length === 0 && (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {[...Array(6)].map((_, i) => (
@@ -175,6 +161,7 @@ export default function Watch() {
               </div>
             )}
 
+            {/* Empty State */}
             {!searched && !loading && (
               <div className="text-center py-20 text-gray-500">
                 <SearchIcon className="w-16 h-16 mx-auto mb-4 text-gray-600" />
