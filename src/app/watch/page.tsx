@@ -7,6 +7,7 @@ import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomple
 import VideoCard from '@/components/VideoCard'
 import VideoPlayer from '@/components/VideoPlayer'
 import ControlPanel, { ControlState, ControlRole } from '@/components/ControlPanel'
+import ControlMode from '@/components/ControlMode'
 import { filterSeen, markSeen } from '@/utils/dedup'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/client'
 import { useUser } from '@/utils/supabase/useUser'
@@ -28,6 +29,8 @@ interface VideoWithStream extends Video {
   formats?: { format_id: string; url: string; ext: string; width: number; height: number }[]
 }
 
+const getVideoKey = (video: Video) => video.hash || `${video.site || 'video'}:${video.videoId}`
+
 const videoCache = new Map<string, Video[]>()
 
 function WatchContent() {
@@ -42,6 +45,9 @@ function WatchContent() {
   const [proposedVideo, setProposedVideo] = useState<VideoWithStream | null>(null)
   const [incomingVideoProposal, setIncomingVideoProposal] = useState<VideoWithStream | null>(null)
   const [videoProposalStatus, setVideoProposalStatus] = useState<'idle' | 'waiting' | 'accepted' | 'declined'>('idle')
+  const [validationVideo, setValidationVideo] = useState<Video | null>(null)
+  const [validationSelfApproved, setValidationSelfApproved] = useState(false)
+  const [validationPartnerApproved, setValidationPartnerApproved] = useState(false)
   const [loading, setLoading] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [chatOpen, setChatOpen] = useState(true)
@@ -61,13 +67,22 @@ function WatchContent() {
   const [incomingSuggestion, setIncomingSuggestion] = useState('')
   const [suggestionState, setSuggestionState] = useState<'idle' | 'sent' | 'accepted' | 'declined'>('idle')
   const [partnerOnline, setPartnerOnline] = useState(true)
+  const [controlModeActive, setControlModeActive] = useState(false)
+  const [fullAuto, setFullAuto] = useState(false)
   const channelRef = useRef<{ send: (payload: { type: 'broadcast'; event: string; payload: Record<string, string> }) => Promise<unknown> } | null>(null)
   const proposedVideoRef = useRef<VideoWithStream | null>(null)
   const selectedVideoRef = useRef<VideoWithStream | null>(null)
+  const validationSelfApprovedRef = useRef(false)
+  const validationPartnerApprovedRef = useRef(false)
+  const validationVideoRef = useRef<Video | null>(null)
+  const loadingApprovedVideoRef = useRef<string | null>(null)
   const lastSearch = useRef<{ query: string; filters: SearchFilters; page: number } | null>(null)
 
   proposedVideoRef.current = proposedVideo
   selectedVideoRef.current = selectedVideo
+  validationSelfApprovedRef.current = validationSelfApproved
+  validationPartnerApprovedRef.current = validationPartnerApproved
+  validationVideoRef.current = validationVideo
 
   useEffect(() => {
     if (!matchId || isBot || !isSupabaseConfigured()) return
@@ -134,6 +149,83 @@ function WatchContent() {
           addPartnerMessage(payload.response === 'accepted' ? 'Video approved.' : 'Video suggestion declined.')
         }
       })
+      .on('broadcast', { event: 'video_validation_request' }, ({ payload }) => {
+        if (payload.senderId !== user?.id && payload.video) {
+          setValidationVideo(JSON.parse(payload.video) as Video)
+          setValidationSelfApproved(false)
+          setValidationPartnerApproved(false)
+          addPartnerMessage('Your partner is asking to watch a video together.')
+        }
+      })
+      .on('broadcast', { event: 'video_validation_response' }, ({ payload }) => {
+        if (payload.senderId !== user?.id && payload.videoKey === (validationVideoRef.current && getVideoKey(validationVideoRef.current))) {
+          if (payload.approved === 'true') {
+            setValidationPartnerApproved(true)
+            if (validationSelfApprovedRef.current && validationVideoRef.current) void loadApprovedVideo(validationVideoRef.current)
+          } else {
+            setValidationVideo(null)
+            setValidationSelfApproved(false)
+            setValidationPartnerApproved(false)
+            addPartnerMessage('Your partner declined that video.')
+          }
+        }
+      })
+      // Control mode events
+      .on('broadcast', { event: 'quest_send' }, ({ payload }) => {
+        if (payload.senderId !== user?.id && payload.text) {
+          addPartnerMessage(`Quest: ${payload.text}`)
+        }
+      })
+      .on('broadcast', { event: 'quest_response' }, ({ payload }) => {
+        if (payload.senderId !== user?.id && payload.accepted) {
+          addPartnerMessage('They accepted your quest!')
+        } else if (payload.senderId !== user?.id) {
+          addPartnerMessage('They passed on that quest.')
+        }
+      })
+      .on('broadcast', { event: 'request_send' }, ({ payload }) => {
+        if (payload.senderId !== user?.id && payload.text) {
+          addPartnerMessage(`Request: ${payload.text}`)
+        }
+      })
+      .on('broadcast', { event: 'request_response' }, ({ payload }) => {
+        if (payload.senderId !== user?.id && payload.accepted) {
+          addPartnerMessage('Your request was granted!')
+        } else if (payload.senderId !== user?.id) {
+          addPartnerMessage('Your request was declined.')
+        }
+      })
+      .on('broadcast', { event: 'full_auto_toggle' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          setFullAuto(payload.enabled === 'true')
+          addPartnerMessage(payload.enabled === 'true' ? 'Full auto enabled.' : 'Full auto disabled.')
+        }
+      })
+      .on('broadcast', { event: 'i_came' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          addPartnerMessage('They finished!')
+        }
+      })
+      .on('broadcast', { event: 'role_switch_request' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          addPartnerMessage('They want to switch roles.')
+        }
+      })
+      .on('broadcast', { event: 'role_switch_response' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          addPartnerMessage(payload.accepted === 'true' ? 'Role switch accepted.' : 'Role switch declined.')
+        }
+      })
+      .on('broadcast', { event: 'safety_exit' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          addPartnerMessage(payload.reason ? `Safety: ${payload.reason}` : 'They need to stop.')
+        }
+      })
+      .on('broadcast', { event: 'control_mode_toggle' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          setControlModeActive(payload.active === 'true')
+        }
+      })
       .subscribe()
 
     return () => {
@@ -146,63 +238,32 @@ function WatchContent() {
     setMessages(prev => [...prev, { sender: 'them', text }])
   }
 
+  function botReply(text: string, delay = 500) {
+    if (isBot) window.setTimeout(() => addPartnerMessage(text), delay)
+  }
+
   const requestControl = () => {
     setControlRequestPending(true)
-    setRelationshipNote('Waiting for their consent')
     setMessages(prev => [...prev, { sender: 'me', text: 'Can I take the controls for a moment?' }])
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'control_offer',
-        payload: { senderId: user?.id || 'guest' },
-      })
-    } else {
+    if (channelRef.current) void channelRef.current.send({ type: 'broadcast', event: 'control_offer', payload: { senderId: user?.id || 'guest' } })
+    else {
       setControlRequestPending(false)
       setControlOwner('them')
-      setRelationshipNote('They are guiding the session')
-      addPartnerMessage('Sure, you can guide this part.')
+      botReply('Sure, you can guide this part.')
     }
   }
 
   const reclaimControl = () => {
     setControlOwner('you')
-    setRelationshipNote('You are sharing control')
     addPartnerMessage('Control is back with you.')
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'control_reclaimed',
-        payload: { senderId: user?.id || 'guest' },
-      })
-    }
+    if (channelRef.current) void channelRef.current.send({ type: 'broadcast', event: 'control_reclaimed', payload: { senderId: user?.id || 'guest' } })
+    botReply('Control is back with you.')
   }
 
   const sendReaction = (reaction: string) => {
     setMessages(prev => [...prev, { sender: 'me', text: reaction }])
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'reaction',
-        payload: { senderId: user?.id || 'guest', text: reaction },
-      })
-    }
-  }
-
-  const proposeVideo = (video: VideoWithStream) => {
-    setProposedVideo(video)
-    setVideoProposalStatus('waiting')
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'video_proposal',
-        payload: { senderId: user?.id || 'guest', video: JSON.stringify(video) },
-      })
-    } else {
-      setVideoProposalStatus('accepted')
-      if (!selectedVideo) setSelectedVideo(video)
-      else setSecondVideo(video)
-      setProposedVideo(null)
-    }
+    if (channelRef.current) void channelRef.current.send({ type: 'broadcast', event: 'reaction', payload: { senderId: user?.id || 'guest', text: reaction } })
+    botReply(`I saw your reaction: ${reaction}.`)
   }
 
   const respondToVideoProposal = (response: 'accepted' | 'declined') => {
@@ -210,17 +271,81 @@ function WatchContent() {
     if (response === 'accepted') {
       if (!selectedVideo) setSelectedVideo(incomingVideoProposal)
       else if (!secondVideo) setSecondVideo(incomingVideoProposal)
-      addPartnerMessage('Video approved.')
-    } else {
-      addPartnerMessage('Video suggestion declined.')
     }
     setIncomingVideoProposal(null)
+    if (channelRef.current) void channelRef.current.send({ type: 'broadcast', event: 'video_response', payload: { senderId: user?.id || 'guest', response } })
+    botReply(response === 'accepted' ? 'Thanks, I am ready to watch it.' : 'That is okay. We can try another video.')
+  }
+
+  const approveValidationVideo = () => {
+    if (!validationVideo) return
+    setValidationSelfApproved(true)
     if (channelRef.current) {
       void channelRef.current.send({
         type: 'broadcast',
-        event: 'video_response',
-        payload: { senderId: user?.id || 'guest', response },
+        event: 'video_validation_response',
+        payload: { senderId: user?.id || 'guest', videoKey: getVideoKey(validationVideo), approved: 'true' },
       })
+    }
+    if (isBot) {
+      setValidationPartnerApproved(true)
+      botReply('I approve this video. I am waiting for your approval too.')
+      void loadApprovedVideo(validationVideo)
+    } else if (validationPartnerApprovedRef.current) {
+      void loadApprovedVideo(validationVideo)
+    }
+  }
+
+  const declineValidationVideo = () => {
+    if (!validationVideo) return
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'video_validation_response',
+        payload: { senderId: user?.id || 'guest', videoKey: getVideoKey(validationVideo), approved: 'false' },
+      })
+    }
+    setValidationVideo(null)
+    setValidationSelfApproved(false)
+    setValidationPartnerApproved(false)
+    botReply('No worries. Let’s choose something else.')
+  }
+
+  async function loadApprovedVideo(video: Video) {
+    const videoKey = getVideoKey(video)
+    if (loadingApprovedVideoRef.current === videoKey) return
+    loadingApprovedVideoRef.current = videoKey
+    const isFirstSlot = !selectedVideoRef.current
+    const pendingVideo = { ...video }
+    if (isFirstSlot) setSelectedVideo(pendingVideo)
+    else setSecondVideo(pendingVideo)
+    setValidationVideo(null)
+    setValidationSelfApproved(false)
+    setValidationPartnerApproved(false)
+    setExtracting(true)
+    try {
+      const res = await fetch(`/api/extract?url=${encodeURIComponent(video.siteUrl || '')}&hash=${video.hash || ''}`)
+      const data = await res.json()
+      if (!data.streamUrl) throw new Error('No stream URL returned')
+
+      const approvedVideo = {
+        ...video,
+        streamUrl: data.streamUrl,
+        thumbnail: data.thumbnail || video.thumbnail,
+        formats: data.formats,
+      }
+      if (video.hash && video.site && video.videoId) await markSeen(video)
+      if (isFirstSlot) setSelectedVideo(approvedVideo)
+      else setSecondVideo(approvedVideo)
+      setMessages(prev => [...prev, { sender: 'them', text: 'Both of us approved. Loading it now.' }])
+    } catch (error) {
+      console.error('Approved video failed to load:', error)
+      if (isFirstSlot) setSelectedVideo(null)
+      else setSecondVideo(null)
+      setMessages(prev => [...prev, { sender: 'them', text: 'That video could not be loaded. Let’s choose another.' }])
+    } finally {
+      loadingApprovedVideoRef.current = null
+      setExtracting(false)
     }
   }
 
@@ -234,6 +359,8 @@ function WatchContent() {
         event: 'guided_mode',
         payload: { senderId: user?.id || 'guest', enabled: String(enabled) },
       })
+    } else if (isBot && enabled) {
+      botReply('I am ready for a guided session.')
     }
   }
 
@@ -246,6 +373,8 @@ function WatchContent() {
         event: 'participant_choice',
         payload: { senderId: user?.id || 'guest', choice },
       })
+    } else if (isBot) {
+      botReply(`Got it. We’ll ${choice.toLowerCase()}.`)
     }
   }
 
@@ -258,6 +387,11 @@ function WatchContent() {
         event: 'suggestion',
         payload: { senderId: user?.id || 'guest', text: suggestion },
       })
+    } else if (isBot) {
+      window.setTimeout(() => {
+        setSuggestionState('accepted')
+        addPartnerMessage('Suggestion accepted. That sounds good.')
+      }, 700)
     }
   }
 
@@ -291,6 +425,140 @@ function WatchContent() {
   const declineControl = () => {
     setIncomingControlRequest(false)
     addPartnerMessage('They kept control for now.')
+  }
+
+  // Control mode functions
+  const activateControlMode = () => {
+    setControlModeActive(true)
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'control_mode_toggle',
+        payload: { senderId: user?.id || 'guest', active: 'true' },
+      })
+    }
+  }
+
+  const deactivateControlMode = () => {
+    setControlModeActive(false)
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'control_mode_toggle',
+        payload: { senderId: user?.id || 'guest', active: 'false' },
+      })
+    }
+  }
+
+  const sendQuest = (text: string, category: string) => {
+    addPartnerMessage(`Quest: ${text}`)
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'quest_send',
+        payload: { senderId: user?.id || 'guest', text, category },
+      })
+    }
+  }
+
+  const respondToQuest = (id: string, accepted: boolean) => {
+    addPartnerMessage(accepted ? 'Accepted quest.' : 'Passed on quest.')
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'quest_response',
+        payload: { senderId: user?.id || 'guest', accepted: String(accepted) },
+      })
+    }
+  }
+
+  const sendRequest = (text: string) => {
+    addPartnerMessage(`Request: ${text}`)
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'request_send',
+        payload: { senderId: user?.id || 'guest', text },
+      })
+    }
+  }
+
+  const respondToRequest = (id: string, accepted: boolean) => {
+    addPartnerMessage(accepted ? 'Request granted.' : 'Request declined.')
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'request_response',
+        payload: { senderId: user?.id || 'guest', accepted: String(accepted) },
+      })
+    }
+  }
+
+  const toggleFullAuto = (enabled: boolean) => {
+    setFullAuto(enabled)
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'full_auto_toggle',
+        payload: { senderId: user?.id || 'guest', enabled: String(enabled) },
+      })
+    }
+  }
+
+  const handleICame = () => {
+    addPartnerMessage('They finished!')
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'i_came',
+        payload: { senderId: user?.id || 'guest' },
+      })
+    }
+  }
+
+  const handleSafetyExit = (reason: string) => {
+    addPartnerMessage(reason ? `Safety: ${reason}` : 'They need to stop.')
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'safety_exit',
+        payload: { senderId: user?.id || 'guest', reason },
+      })
+    }
+  }
+
+  const handleRoleSwitchAccept = () => {
+    setControlOwner(controlOwner === 'you' ? 'them' : 'you')
+    addPartnerMessage('Roles switched!')
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'role_switch_response',
+        payload: { senderId: user?.id || 'guest', accepted: 'true' },
+      })
+    }
+  }
+
+  const handleRoleSwitchDecline = () => {
+    addPartnerMessage('Keeping current roles.')
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'role_switch_response',
+        payload: { senderId: user?.id || 'guest', accepted: 'false' },
+      })
+    }
+  }
+
+  const handleAftercare = () => {
+    addPartnerMessage('Entering aftercare mode.')
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'reaction',
+        payload: { senderId: user?.id || 'guest', text: 'Entering aftercare mode.' },
+      })
+    }
   }
 
   const searchVideos = useCallback(async (query: string, filters: SearchFilters, page = 1, append = false) => {
@@ -379,41 +647,25 @@ function WatchContent() {
       }
     }
 
-    // Extract stream URL
-    setExtracting(true)
-    try {
-      const res = await fetch(`/api/extract?url=${encodeURIComponent(video.siteUrl || '')}&hash=${video.hash || ''}`)
-      const data = await res.json()
-
-      if (data.streamUrl) {
-        if (video.hash && video.site && video.videoId) {
-          await markSeen(video)
-        }
-
-        proposeVideo({
-          ...video,
-          streamUrl: data.streamUrl,
-          thumbnail: data.thumbnail || video.thumbnail,
-          formats: data.formats,
-        })
-        setMessages(prev => [...prev, { sender: 'me', text: 'I suggest this video for us.' }])
-      } else {
-        console.warn('Extraction failed, skipping to next video')
-        const currentIndex = videos.findIndex(v => v.hash === video.hash)
-        const nextVideo = videos[currentIndex + 1]
-        if (nextVideo) {
-          handleVideoClick(nextVideo)
-        }
-      }
-    } catch (err) {
-      console.error('Extraction failed:', err)
-      const currentIndex = videos.findIndex(v => v.hash === video.hash)
-      const nextVideo = videos[currentIndex + 1]
-      if (nextVideo) {
-        handleVideoClick(nextVideo)
-      }
+    if (selectedVideo && secondVideo) {
+      setMessages(prev => [...prev, { sender: 'them', text: 'Both watch slots are full. End one video before choosing another.' }])
+      return
     }
-    setExtracting(false)
+
+    setValidationVideo(video)
+    setValidationSelfApproved(false)
+    setValidationPartnerApproved(false)
+    setMessages(prev => [...prev, { sender: 'me', text: 'I would like to watch this together.' }])
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'video_validation_request',
+        payload: { senderId: user?.id || 'guest', video: JSON.stringify(video) },
+      })
+    } else if (isBot) {
+      setValidationPartnerApproved(true)
+      botReply('I approve this video. Please confirm it on your side.')
+    }
   }
 
   const handleBack = useCallback(() => {
@@ -433,34 +685,85 @@ function WatchContent() {
     }
   }
 
+  const videoValidator = validationVideo && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-purple-500/40 bg-gray-950 p-5 shadow-2xl shadow-purple-950/30">
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-purple-300">Shared watch validator</p>
+            <h2 className="mt-1 text-lg font-semibold text-white">Agree on this video</h2>
+            <p className="mt-1 text-xs text-gray-400">It will not load until you both approve.</p>
+          </div>
+          <button onClick={declineValidationVideo} className="text-gray-500 hover:text-white cursor-pointer" aria-label="Close validator">×</button>
+        </div>
+        <div className="rounded-xl border border-gray-800 bg-gray-900/70 p-3 mb-5">
+          <p className="text-sm font-medium text-white line-clamp-2">{validationVideo.title}</p>
+          <p className="text-xs text-gray-500 mt-1">{validationVideo.site || 'Shared selection'}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className={`rounded-lg border p-3 ${validationSelfApproved ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-gray-800 bg-gray-900/40'}`}>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500">You</p>
+            <p className="text-xs text-white mt-1">{validationSelfApproved ? 'Approved' : 'Waiting'}</p>
+          </div>
+          <div className={`rounded-lg border p-3 ${validationPartnerApproved ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-gray-800 bg-gray-900/40'}`}>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500">Partner</p>
+            <p className="text-xs text-white mt-1">{validationPartnerApproved ? 'Approved' : 'Waiting'}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={approveValidationVideo} disabled={validationSelfApproved} className="flex-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-xs font-semibold hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer">
+            {validationSelfApproved ? 'You approved' : 'Approve video'}
+          </button>
+          <button onClick={declineValidationVideo} className="rounded-lg border border-gray-700 px-4 py-2.5 text-xs text-gray-300 hover:border-red-400 hover:text-white transition cursor-pointer">Decline</button>
+        </div>
+      </div>
+    </div>
+  )
+
   // If video is selected, show player
-  if (selectedVideo && selectedVideo.streamUrl) {
+  if (selectedVideo) {
     return (
       <div className="h-screen bg-black text-white flex">
+        {videoValidator}
         {/* Main Video Area */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className={`flex-1 min-h-0 ${secondVideo ? 'grid grid-rows-2 gap-px bg-gray-800' : ''}`}>
-            <VideoPlayer
-              streamUrl={selectedVideo.streamUrl}
-              thumbnail={selectedVideo.thumbnail || ''}
-              title={selectedVideo.title}
-              duration={selectedVideo.duration || undefined}
-              onBack={handleBack}
-              formats={selectedVideo.formats}
-              mode="together"
-              canControl={controlOwner === 'you'}
-            />
-            {secondVideo && secondVideo.streamUrl && (
+            {selectedVideo.streamUrl ? (
               <VideoPlayer
-                streamUrl={secondVideo.streamUrl}
-                thumbnail={secondVideo.thumbnail || ''}
-                title={secondVideo.title}
-                duration={secondVideo.duration || undefined}
+                streamUrl={selectedVideo.streamUrl}
+                thumbnail={selectedVideo.thumbnail || ''}
+                title={selectedVideo.title}
+                duration={selectedVideo.duration || undefined}
                 onBack={handleBack}
-                formats={secondVideo.formats}
+                formats={selectedVideo.formats}
                 mode="together"
                 canControl={controlOwner === 'you'}
               />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center bg-gray-950 text-gray-400">
+                <div className="mb-3 h-10 w-10 animate-spin rounded-full border-2 border-gray-700 border-t-purple-400" />
+                <p className="text-sm">Loading {selectedVideo.title}</p>
+                <p className="mt-1 text-xs text-gray-600">Your chat stays open while it loads</p>
+              </div>
+            )}
+            {secondVideo && (
+              secondVideo.streamUrl ? (
+                <VideoPlayer
+                  streamUrl={secondVideo.streamUrl}
+                  thumbnail={secondVideo.thumbnail || ''}
+                  title={secondVideo.title}
+                  duration={secondVideo.duration || undefined}
+                  onBack={handleBack}
+                  formats={secondVideo.formats}
+                  mode="together"
+                  canControl={controlOwner === 'you'}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center bg-gray-950 text-gray-400">
+                  <div className="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-gray-700 border-t-purple-400" />
+                  <p className="text-sm">Loading second video</p>
+                </div>
+              )
             )}
           </div>
         </div>
@@ -468,94 +771,125 @@ function WatchContent() {
         {/* Side Panel: Control + Chat */}
         {chatOpen && (
           <div className="w-80 border-l border-gray-800 flex flex-col shrink-0">
-            {/* Immersive Control Panel */}
-            <div className="flex-1 overflow-y-auto">
-              <ControlPanel
-                controlState={
-                  incomingControlRequest ? 'pending' :
-                  controlRequestPending ? 'offering' :
-                  controlOwner === 'them' ? 'granted' : 'idle'
-                }
-                role={controlOwner === 'you' ? 'controller' : 'participant'}
-                guidedMode={guidedMode}
-                incomingSuggestion={incomingSuggestion}
+            {controlModeActive ? (
+              /* Control Mode: immersive quest/request system */
+              <ControlMode
+                controlOwner={controlOwner}
                 partnerOnline={partnerOnline}
-                onOfferControl={requestControl}
-                onReclaimControl={reclaimControl}
-                onAcceptControl={acceptControl}
-                onDeclineControl={declineControl}
-                onSendSuggestion={sendSuggestion}
-                onRespondToSuggestion={respondToSuggestion}
-                onToggleGuidedMode={toggleGuidedMode}
-                onChooseAction={chooseParticipantAction}
-                onSendReaction={sendReaction}
+                onSendQuest={sendQuest}
+                onResponseToQuest={respondToQuest}
+                onSendRequest={sendRequest}
+                onResponseToRequest={respondToRequest}
+                onToggleFullAuto={toggleFullAuto}
+                onICame={handleICame}
+                onSafetyExit={handleSafetyExit}
+                onRoleSwitchAccept={handleRoleSwitchAccept}
+                onRoleSwitchDecline={handleRoleSwitchDecline}
+                onAftercare={handleAftercare}
+                onDeactivate={deactivateControlMode}
               />
+            ) : (
+              /* Default mode: ControlPanel + Chat */
+              <>
+                <div className="flex-1 overflow-y-auto">
+                  <ControlPanel
+                    controlState={incomingControlRequest ? 'pending' : controlRequestPending ? 'offering' : controlOwner === 'them' ? 'granted' : 'idle'}
+                    role={controlOwner === 'you' ? 'controller' : 'participant'}
+                    guidedMode={guidedMode}
+                    incomingSuggestion={incomingSuggestion}
+                    partnerOnline={partnerOnline}
+                    onOfferControl={requestControl}
+                    onReclaimControl={reclaimControl}
+                    onAcceptControl={acceptControl}
+                    onDeclineControl={declineControl}
+                    onSendSuggestion={sendSuggestion}
+                    onRespondToSuggestion={respondToSuggestion}
+                    onToggleGuidedMode={toggleGuidedMode}
+                    onChooseAction={chooseParticipantAction}
+                    onSendReaction={sendReaction}
+                  />
 
-              {/* Video Proposal UI */}
-              {proposedVideo && (
-                <div className="mx-4 mb-3 rounded-lg border border-blue-500/40 bg-blue-950/30 p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-blue-300 mb-1">Your video proposal</p>
-                  <p className="text-xs text-white truncate">{proposedVideo.title}</p>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    {videoProposalStatus === 'waiting' ? 'Waiting for partner approval...' : videoProposalStatus === 'declined' ? 'Partner declined this video.' : 'Partner approved this video.'}
-                  </p>
+                  {/* Activate Control Mode button */}
+                  {selectedVideo && (
+                    <div className="p-4">
+                      <button
+                        onClick={activateControlMode}
+                        className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-sm font-semibold hover:from-purple-500 hover:to-pink-500 transition-all cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Enter Control Mode
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Video proposal cards */}
+                  {proposedVideo && (
+                    <div className="mx-4 mb-3 rounded-lg border border-blue-500/40 bg-blue-950/30 p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-blue-300 mb-1">Your video proposal</p>
+                      <p className="text-xs text-white truncate">{proposedVideo.title}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {videoProposalStatus === 'waiting' ? 'Waiting for partner approval...' : videoProposalStatus === 'declined' ? 'Partner declined this video.' : 'Partner approved this video.'}
+                      </p>
+                    </div>
+                  )}
+                  {incomingVideoProposal && (
+                    <div className="mx-4 mb-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-emerald-300 mb-1">Partner suggests</p>
+                      <p className="text-xs text-white truncate">{incomingVideoProposal.title}</p>
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => respondToVideoProposal('accepted')} className="flex-1 px-2 py-1.5 rounded-md bg-emerald-600 text-xs hover:bg-emerald-500 transition cursor-pointer">Add video</button>
+                        <button onClick={() => respondToVideoProposal('declined')} className="flex-1 px-2 py-1.5 rounded-md border border-gray-700 text-xs text-gray-300 hover:text-white transition cursor-pointer">Decline</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {incomingVideoProposal && (
-                <div className="mx-4 mb-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-emerald-300 mb-1">Partner suggests</p>
-                  <p className="text-xs text-white truncate">{incomingVideoProposal.title}</p>
-                  <div className="flex gap-2 mt-2">
-                    <button onClick={() => respondToVideoProposal('accepted')} className="flex-1 px-2 py-1.5 rounded-md bg-emerald-600 text-xs hover:bg-emerald-500 transition cursor-pointer">Add video</button>
-                    <button onClick={() => respondToVideoProposal('declined')} className="flex-1 px-2 py-1.5 rounded-md border border-gray-700 text-xs text-gray-300 hover:text-white transition cursor-pointer">Decline</button>
+
+                {/* Chat Header */}
+                <div className="p-3 border-b border-gray-800 flex justify-between items-center">
+                  <span className="font-semibold text-sm flex items-center gap-2">
+                    <ChatIcon className="w-4 h-4" /> {isBot ? 'Test Bot Chat' : 'Live Chat'}
+                  </span>
+                  <button onClick={() => setChatOpen(false)} className="text-gray-500 hover:text-white cursor-pointer">
+                    <CloseIcon className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Chat Messages */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                  {messages.map((msg, i) => (
+                    <div key={i} className={`text-sm ${msg.sender === 'me' ? 'text-right' : ''}`}>
+                      <span className={msg.sender === 'me' ? 'text-blue-400' : 'text-pink-400'}>
+                        {msg.sender === 'me' ? 'You' : 'Them'}:
+                      </span>{' '}
+                      <span className="text-gray-300">{msg.text}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Chat Input */}
+                <div className="p-3 border-t border-gray-800">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                      placeholder="Chat..."
+                      className="flex-1 px-3 py-2 bg-gray-800 rounded text-sm text-white placeholder-gray-500 focus:outline-none"
+                    />
+                    <button onClick={sendMessage} className="px-3 py-2 bg-blue-600 rounded text-sm cursor-pointer hover:bg-blue-700">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9-2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Chat Header */}
-            <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-              <span className="font-semibold text-sm flex items-center gap-2">
-                <ChatIcon className="w-4 h-4" /> {isBot ? 'Test Bot Chat' : 'Live Chat'}
-              </span>
-              <button onClick={() => setChatOpen(false)} className="text-gray-500 hover:text-white cursor-pointer">
-                <CloseIcon className="w-4 h-4" />
-              </button>
-            </div>
-            
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              {messages.map((msg, i) => (
-                <div key={i} className={`text-sm ${msg.sender === 'me' ? 'text-right' : ''}`}>
-                  <span className={msg.sender === 'me' ? 'text-blue-400' : 'text-pink-400'}>
-                    {msg.sender === 'me' ? 'You' : 'Them'}:
-                  </span>{' '}
-                  <span className="text-gray-300">{msg.text}</span>
-                </div>
-              ))}
-            </div>
-            
-            {/* Chat Input */}
-            <div className="p-3 border-t border-gray-800">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder="Chat..."
-                  className="flex-1 px-3 py-2 bg-gray-800 rounded text-sm text-white placeholder-gray-500 focus:outline-none"
-                />
-                <button onClick={sendMessage} className="px-3 py-2 bg-blue-600 rounded text-sm cursor-pointer hover:bg-blue-700">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
-
         {!chatOpen && (
           <button 
             onClick={() => setChatOpen(true)}
@@ -570,6 +904,7 @@ function WatchContent() {
 
   return (
     <div className="h-screen bg-black text-white flex">
+      {videoValidator}
       {/* Main Video Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
@@ -612,6 +947,30 @@ function WatchContent() {
               autoFocus
             />
           </div>
+
+          {(proposedVideo || incomingVideoProposal) && (
+            <div className="mb-6 grid gap-3 sm:grid-cols-2">
+              {proposedVideo && (
+                <div className="rounded-xl border border-blue-500/40 bg-blue-950/30 p-4">
+                  <p className="text-[10px] uppercase tracking-wider text-blue-300 mb-1">Video proposal sent</p>
+                  <p className="text-sm text-white truncate">{proposedVideo.title}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {videoProposalStatus === 'waiting' ? 'Waiting for your partner to approve it...' : videoProposalStatus === 'declined' ? 'Your partner declined this video.' : 'Your partner approved this video.'}
+                  </p>
+                </div>
+              )}
+              {incomingVideoProposal && (
+                <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-4">
+                  <p className="text-[10px] uppercase tracking-wider text-emerald-300 mb-1">Partner suggests</p>
+                  <p className="text-sm text-white truncate">{incomingVideoProposal.title}</p>
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={() => respondToVideoProposal('accepted')} className="flex-1 px-3 py-2 rounded-lg bg-emerald-600 text-xs font-semibold hover:bg-emerald-500 transition cursor-pointer">Add video</button>
+                    <button onClick={() => respondToVideoProposal('declined')} className="flex-1 px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-300 hover:text-white transition cursor-pointer">Decline</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Loading skeleton */}
           {loading && videos.length === 0 && (

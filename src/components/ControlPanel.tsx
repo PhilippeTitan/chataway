@@ -114,7 +114,18 @@ export default function ControlPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header: Control Status */}
+      {/* Participant zone: blue, anchored at the top */}
+      <div className="p-4 border-b border-blue-500/25 bg-blue-950/25">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-blue-300">Participant</p>
+            <p className="text-xs text-blue-100 mt-1">Your choices stay yours</p>
+          </div>
+          <div className={`w-3 h-3 rounded-full ${role === 'participant' ? 'bg-blue-400 shadow-lg shadow-blue-400/50' : 'bg-blue-900'}`} />
+        </div>
+      </div>
+
+      {/* Shared control status */}
       <div className="p-4 border-b border-gray-800 bg-gray-950/80">
         <div className="flex items-center justify-between mb-2">
           <div>
@@ -241,7 +252,7 @@ export default function ControlPanel({
 
         {/* CONTROLLER VIEW: Suggestion Cards */}
         {role === 'controller' && guidedMode && (
-          <div className="p-4">
+          <div className="p-4 border-b border-red-500/25 bg-red-950/20">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] uppercase tracking-wider text-gray-500">Send a suggestion</p>
               <button
@@ -272,7 +283,7 @@ export default function ControlPanel({
 
         {/* PARTICIPANT VIEW: Action Cards */}
         {role === 'participant' && guidedMode && (
-          <div className="p-4">
+          <div className="p-4 border-b border-blue-500/25 bg-blue-950/15">
             <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-3">Your choices</p>
             <div className="grid grid-cols-2 gap-2">
               {PARTICIPANT_ACTIONS.map((action) => (
@@ -311,6 +322,17 @@ export default function ControlPanel({
               ))}
             </div>
           )}
+        </div>
+
+        {/* Controller zone: red, anchored at the bottom */}
+        <div className="p-4 border-t border-red-500/30 bg-red-950/25">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-red-300">Controller</p>
+              <p className="text-xs text-red-100 mt-1">Suggestions require a clear yes</p>
+            </div>
+            <div className={`w-3 h-3 rounded-full ${role === 'controller' ? 'bg-red-400 shadow-lg shadow-red-400/50' : 'bg-red-900'}`} />
+          </div>
         </div>
       </div>
     </div>
