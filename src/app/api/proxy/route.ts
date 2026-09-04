@@ -57,7 +57,34 @@ export async function GET(request: NextRequest) {
 
     const newHeaders = new Headers()
     newHeaders.set('Access-Control-Allow-Origin', '*')
-    newHeaders.set('Content-Type', response.headers.get('Content-Type') || 'video/mp4')
+    newHeaders.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges')
+    const isManifest = urlObj.pathname.endsWith('.m3u8')
+
+    if (isManifest) {
+      const manifest = await response.text()
+      const proxyManifestUrl = (resourceUrl: string) =>
+        `/api/proxy?url=${encodeURIComponent(new URL(resourceUrl, url).toString())}`
+      const rewrittenManifest = manifest
+        .split('\n')
+        .map((line) => {
+          if (line.startsWith('#')) {
+            return line.replace(/URI="([^"]+)"/g, (_, resourceUrl: string) => `URI="${proxyManifestUrl(resourceUrl)}"`)
+          }
+          return line.trim() ? proxyManifestUrl(line.trim()) : line
+        })
+        .join('\n')
+
+      newHeaders.set('Content-Type', 'application/vnd.apple.mpegurl')
+      return new Response(rewrittenManifest, {
+        status: response.status,
+        headers: newHeaders,
+      })
+    }
+
+    newHeaders.set(
+      'Content-Type',
+      urlObj.pathname.endsWith('.ts') ? 'video/mp2t' : response.headers.get('Content-Type') || 'video/mp4'
+    )
 
     if (response.headers.get('Content-Length')) {
       newHeaders.set('Content-Length', response.headers.get('Content-Length')!)

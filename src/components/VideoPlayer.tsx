@@ -11,9 +11,11 @@ interface VideoPlayerProps {
   duration?: string
   onBack: () => void
   formats?: { format_id: string; url: string; ext: string; width: number; height: number }[]
+  mode?: 'solo' | 'together'
+  canControl?: boolean
 }
 
-export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onBack, formats }: VideoPlayerProps) {
+export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onBack, formats, mode = 'solo', canControl = true }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -21,11 +23,18 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
   const [currentTime, setCurrentTime] = useState('0:00')
   const [volume, setVolume] = useState(80)
   const [showControls, setShowControls] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [selectedQuality, setSelectedQuality] = useState<string>('default')
   const [showQualityMenu, setShowQualityMenu] = useState(false)
   const controlsTimer = useRef<NodeJS.Timeout | null>(null)
 
   const proxyUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`
+
+  function formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
 
   useEffect(() => {
     const video = videoRef.current
@@ -67,24 +76,33 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
     }
   }, [proxyUrl, streamUrl])
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === videoRef.current)
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
 
   const togglePlay = useCallback(() => {
+    if (!canControl) return
     const video = videoRef.current
     if (!video) return
 
     if (video.paused) {
-      video.play()
+      void video.play().catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          console.error('Video playback failed:', error)
+        }
+      })
     } else {
       video.pause()
     }
-  }, [])
+  }, [canControl])
 
   const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!canControl) return
     const video = videoRef.current
     if (!video || !video.duration) return
 
@@ -92,15 +110,16 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
     const x = e.clientX - rect.left
     const percentage = x / rect.width
     video.currentTime = percentage * video.duration
-  }, [])
+  }, [canControl])
 
   const toggleFullscreen = useCallback(() => {
-    if (containerRef.current) {
-      if (document.fullscreenElement) {
-        document.exitFullscreen()
-      } else {
-        containerRef.current.requestFullscreen()
-      }
+    const video = videoRef.current
+    if (!video) return
+
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+    } else {
+      void video.requestFullscreen()
     }
   }, [])
 
@@ -127,7 +146,7 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-black z-50 flex flex-col"
+      className={`${mode === 'together' ? 'relative w-full h-full min-h-0' : 'fixed inset-0 z-50'} bg-black flex flex-col`}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
@@ -140,13 +159,14 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
       </button>
 
       {/* Video */}
-      <div className="flex-1 flex items-center justify-center" onClick={togglePlay}>
+      <div className={`flex-1 flex items-center justify-center ${canControl ? 'cursor-pointer' : 'cursor-default'}`} onClick={togglePlay}>
         <video
           ref={videoRef}
           src={proxyUrl}
           poster={thumbnail}
-          className="max-w-full max-h-full cursor-pointer"
+          className="w-full h-full max-w-full max-h-full object-contain cursor-pointer"
           playsInline
+          controls={isFullscreen}
         />
       </div>
 
@@ -155,7 +175,7 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
         <div className="max-w-4xl mx-auto">
           {/* Progress bar */}
           <div
-            className="w-full h-1.5 bg-gray-700 rounded-full mb-3 cursor-pointer group"
+            className={`w-full h-1.5 bg-gray-700 rounded-full mb-3 group ${canControl ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
             onClick={handleProgressClick}
           >
             <div
@@ -170,7 +190,7 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               {/* Play/Pause */}
-              <button onClick={togglePlay} className="text-white hover:text-purple-400 transition cursor-pointer">
+                <button onClick={togglePlay} disabled={!canControl} className="text-white hover:text-purple-400 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" title={canControl ? 'Play or pause' : 'Control is with your partner'}>
                 {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
               </button>
 
@@ -183,6 +203,7 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
               <div className="flex items-center gap-2">
                 <VolumeIcon className="w-5 h-5 text-gray-400" />
                 <input
+                  disabled={!canControl}
                   type="range"
                   min="0"
                   max="100"
@@ -207,7 +228,7 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
                     onClick={() => setShowQualityMenu(!showQualityMenu)}
                     className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-300 hover:bg-gray-700 cursor-pointer"
                   >
-                    {selectedQuality === 'default' ? '480p' : selectedQuality}
+                    {selectedQuality === 'default' ? '360p' : selectedQuality}
                   </button>
                   {showQualityMenu && (
                     <div className="absolute bottom-full right-0 mb-2 bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
@@ -218,7 +239,7 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
                         }}
                         className="block w-full px-4 py-2 text-sm text-left hover:bg-gray-800 cursor-pointer"
                       >
-                        Default (480p)
+                        Default (360p)
                       </button>
                       {formats.map((f) => (
                         <button

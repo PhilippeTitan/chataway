@@ -46,10 +46,10 @@ export async function GET(request: Request) {
     let blockMatch
 
     // Simpler approach: find all links to /video... and extract surrounding context
-      const linkRegex = /<a\s+[^>]*href="(\/video[./][a-zA-Z0-9]+\/[^"]+)"[^>]*title="([^"]*)"[^>]*>/g
+     const linkRegex = /<a\s+[^>]*href="(\/video[./][a-zA-Z0-9]+\/[^"]+)"[^>]*title="([^"]*)"[^>]*>/g
     let linkMatch
 
-    while ((linkMatch = linkRegex.exec(html)) !== null && videos.length < 20) {
+    while ((linkMatch = linkRegex.exec(html)) !== null && videos.length < 40) {
       const href = linkMatch[1]
       const title = linkMatch[2]
       const videoId = extractVideoId(href)
@@ -59,16 +59,24 @@ export async function GET(request: Request) {
       if (videos.some(v => v.videoId === videoId)) continue
 
       // Try to find thumbnail near this link
-      const nearbyStart = Math.max(0, linkMatch.index - 500)
-      const nearbyEnd = Math.min(html.length, linkMatch.index + 1000)
-      const nearby = html.slice(nearbyStart, nearbyEnd)
+        // Keep thumbnail lookup inside the current result so neighboring cards cannot leak images.
+        const itemStart = html.lastIndexOf('<div id="video_', linkMatch.index)
+        const nearbyStart = itemStart >= 0 ? itemStart : Math.max(0, linkMatch.index - 2500)
+        const nearby = html.slice(nearbyStart, Math.min(html.length, linkMatch.index + 500))
 
       let thumbnail: string | null = null
+      let preview: string | null = null
       // Look for data-src or src with an image URL
       const thumbMatch = nearby.match(/(?:data-src|src)="(https?:\/\/[^"]*(?:\.jpg|\.jpeg|\.png|\.webp)[^"]*)"/)
-      if (thumbMatch) {
+         if (thumbMatch && !thumbMatch[1].includes('THUMBNUM')) {
         thumbnail = thumbMatch[1]
+        } else {
+          const sfwThumbMatch = nearby.match(/data-sfwthumb="(https?:\/\/[^\"]+)"/)
+          const mozaiqueMatch = nearby.match(/data-mzl="(https?:\/\/[^\"]+)"/)
+          thumbnail = sfwThumbMatch?.[1] || mozaiqueMatch?.[1] || null
       }
+        const previewMatch = nearby.match(/data-pvv="(https?:\/\/[^\"]+)"/)
+        preview = previewMatch ? previewMatch[1] : null
 
       // Look for duration
       let duration: string | null = null
@@ -86,6 +94,7 @@ export async function GET(request: Request) {
         site: 'xvideos',
         hash: createHash('xvideos', videoId),
         thumbnail,
+        preview,
       })
     }
 
@@ -96,7 +105,7 @@ export async function GET(request: Request) {
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[1])
-          for (const v of parsed.slice(0, 20)) {
+          for (const v of parsed.slice(0, 40)) {
             const videoId = v.id || extractVideoId(v.url || '')
             if (!videoId) continue
             videos.push({
@@ -108,6 +117,7 @@ export async function GET(request: Request) {
               site: 'xvideos',
               hash: createHash('xvideos', videoId),
               thumbnail: v.thumbnail || v.img || null,
+              preview: v.preview || v.previewUrl || null,
             })
           }
         } catch { /* ignore parse errors */ }

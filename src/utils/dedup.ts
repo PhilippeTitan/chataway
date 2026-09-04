@@ -78,7 +78,7 @@ export async function markSeen(video: { hash?: string; site?: string; videoId?: 
   if (video.hash) {
     markSeenLocal(video.hash)
     if (video.site && video.videoId) {
-      await markSeenSupabase(video.hash, video.site, video.videoId)
+      void markSeenSupabase(video.hash, video.site, video.videoId)
     }
   }
 }

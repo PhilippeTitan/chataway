@@ -22,7 +22,12 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       // If table doesn't exist, just log and continue (graceful degradation)
-      if (error.message?.includes('does not exist') || error.code === '42P01') {
+      if (
+        error.message?.includes('does not exist') ||
+        error.message?.includes('permission denied') ||
+        error.message?.includes('row-level security') ||
+        ['42501', '42P01'].includes(error.code || '')
+      ) {
         return NextResponse.json({ success: true, note: 'Table not found, localStorage only' })
       }
       return NextResponse.json({ error: error.message }, { status: 500 })

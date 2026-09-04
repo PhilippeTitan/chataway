@@ -7,6 +7,7 @@ interface VideoCardProps {
   videoId: string
   title: string
   thumbnail: string | null
+  preview?: string | null
   duration?: string | null
   views?: string | null
   site?: string
@@ -20,6 +21,7 @@ export default function VideoCard({
   videoId,
   title,
   thumbnail,
+  preview,
   duration,
   views,
   site,
@@ -30,52 +32,70 @@ export default function VideoCard({
 }: VideoCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false)
   const [imgError, setImgError] = useState(false)
+  const [imageSrc, setImageSrc] = useState(thumbnail)
+  const [isPreviewing, setIsPreviewing] = useState(false)
+  const [previewError, setPreviewError] = useState(false)
 
-  const getSiteBadge = () => {
-    if (!site) return null
-    const colors: Record<string, string> = {
-      xvideos: 'bg-red-600',
-      pornhub: 'bg-orange-600',
-      xhamster: 'bg-amber-600',
-      xnxx: 'bg-purple-600',
-    }
-    return (
-      <span className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${colors[site] || 'bg-gray-600'}`}>
-        {site.toUpperCase()}
-      </span>
-    )
-  }
+  const fallbackImageSrc = thumbnail?.replace(
+    /\/xv_[^/]+_t\.(jpg|jpeg|png|webp)$/i,
+    '/mozaique_listing.jpg'
+  )
 
   return (
     <div
       onClick={onClick}
-      onMouseEnter={onHoverStart}
-      onMouseLeave={onHoverEnd}
-      className="bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all duration-200 cursor-pointer group"
+      onMouseEnter={() => {
+        setIsPreviewing(true)
+        onHoverStart?.()
+      }}
+      onMouseLeave={() => {
+        setIsPreviewing(false)
+        onHoverEnd?.()
+      }}
+      className="bg-[#1c130d] border border-amber-900/20 rounded-lg overflow-hidden hover:ring-2 hover:ring-amber-600/70 transition-all duration-200 cursor-pointer group"
     >
-      <div className="aspect-video bg-gray-800 relative overflow-hidden">
-        {thumbnail && !imgError ? (
+      <div className="aspect-video bg-[#261811] relative overflow-hidden">
+        {imageSrc && !imgError ? (
           <>
             <img
-              src={thumbnail}
+              src={`/api/proxy?url=${encodeURIComponent(imageSrc)}`}
               alt=""
               className={`w-full h-full object-cover transition-all duration-300 ${
                 isHovered ? 'scale-110' : 'scale-100'
               } ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
               loading="lazy"
               onLoad={() => setImgLoaded(true)}
-              onError={() => setImgError(true)}
+              onError={() => {
+                if (fallbackImageSrc && imageSrc !== fallbackImageSrc) {
+                  setImageSrc(fallbackImageSrc)
+                  setImgLoaded(false)
+                } else {
+                  setImgError(true)
+                }
+              }}
             />
             {!imgLoaded && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-850">
-            <PlayIcon className="w-12 h-12 text-gray-600" />
+          <div className="w-full h-full flex items-center justify-center bg-[#261811]">
+            <PlayIcon className="w-12 h-12 text-amber-900" />
           </div>
+        )}
+
+        {preview && isPreviewing && !previewError && (
+          <video
+            src={`/api/proxy?url=${encodeURIComponent(preview)}`}
+            className="absolute inset-0 w-full h-full object-cover"
+            muted
+            loop
+            autoPlay
+            playsInline
+            onError={() => setPreviewError(true)}
+          />
         )}
 
         {/* Hover overlay */}
@@ -92,9 +112,6 @@ export default function VideoCard({
           </div>
         </div>
 
-        {/* Site badge */}
-        {getSiteBadge()}
-
         {/* Duration badge */}
         {duration && (
           <div className="absolute top-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-medium">
@@ -106,7 +123,7 @@ export default function VideoCard({
       {/* Video info */}
       <div className="p-3">
         <h3 className={`font-medium text-sm line-clamp-2 transition-colors ${
-          isHovered ? 'text-purple-400' : 'text-white'
+          isHovered ? 'text-amber-300' : 'text-white'
         }`}>
           {title}
         </h3>

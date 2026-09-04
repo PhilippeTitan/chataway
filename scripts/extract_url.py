@@ -28,13 +28,14 @@ def extract(video_url):
             # Sort by height (quality)
             mp4_formats.sort(key=lambda x: x.get('height', 0), reverse=True)
 
-            # Default to 480p or best available
-            best_format = None
-            for f in mp4_formats:
-                height = f.get('height', 0)
-                if height <= 480:
-                    best_format = f
-                    break
+            # Prefer progressive MP4 for broad browser compatibility and faster startup.
+            progressive_formats = [f for f in mp4_formats if 'm3u8' not in (f.get('url') or '')]
+            best_format = progressive_formats[0] if progressive_formats else None
+            if not best_format:
+                for f in mp4_formats:
+                    if f.get('height', 0) <= 360:
+                        best_format = f
+                        break
             if not best_format and mp4_formats:
                 best_format = mp4_formats[-1]  # Lowest quality as fallback
 

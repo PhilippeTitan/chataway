@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useRef, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { VideoIcon, SkipIcon, CloseIcon, SendIcon } from '@/components/icons'
 
 interface Message {
@@ -11,8 +11,11 @@ interface Message {
   time: string
 }
 
-export default function Chat() {
+function ChatContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const matchId = searchParams.get('matchId')
+  const isBot = searchParams.get('bot') === '1'
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [showSkip, setShowSkip] = useState(false)
@@ -60,31 +63,31 @@ export default function Chat() {
   }
 
   return (
-    <div className="h-screen bg-black text-white flex flex-col">
+    <div className="h-screen bg-[#0e0a07] text-[#f5ebe0] flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+      <div className="p-4 border-b border-amber-900/30 bg-[#130c07]/80 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-          <span className="text-gray-400">Anonymous User</span>
+          <span className="text-[#c7b5a3]">{isBot ? 'Test Match Bot' : matchId ? 'Matched Guest' : 'Anonymous User'}</span>
         </div>
         <div className="flex gap-2">
           <button 
-            onClick={() => router.push('/watch')}
-            className="px-4 py-2 bg-purple-600 rounded-lg text-sm font-semibold hover:bg-purple-700 transition cursor-pointer flex items-center gap-2"
+            onClick={() => router.push(`/watch${matchId ? `?matchId=${encodeURIComponent(matchId)}&bot=${isBot ? '1' : '0'}` : ''}`)}
+            className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 rounded-lg text-sm font-semibold hover:from-amber-500 hover:to-orange-500 transition cursor-pointer flex items-center gap-2"
           >
             <VideoIcon className="w-4 h-4" /> Watch Together
           </button>
           {showSkip && (
             <button 
               onClick={() => router.push('/queue')}
-              className="px-4 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700 transition cursor-pointer flex items-center gap-2"
+                className="px-4 py-2 bg-[#4a2117] border border-orange-900/50 rounded-lg text-sm font-semibold hover:bg-[#64291a] transition cursor-pointer flex items-center gap-2"
             >
               <SkipIcon className="w-4 h-4" /> Skip
             </button>
           )}
           <button 
             onClick={() => router.push('/end')}
-            className="px-4 py-2 bg-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
+            className="px-4 py-2 bg-[#261b14] border border-amber-900/35 rounded-lg text-sm font-semibold hover:bg-[#32231a] transition cursor-pointer flex items-center gap-2"
           >
             <CloseIcon className="w-4 h-4" /> End
           </button>
@@ -105,10 +108,10 @@ export default function Chat() {
         )}
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
               msg.sender === 'me' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-800 text-gray-200'
+                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white' 
+                  : 'bg-[#21150e] border border-amber-900/25 text-[#e5d8ca]'
             }`}>
               <p>{msg.text}</p>
               <p className="text-xs opacity-50 mt-1">{msg.time}</p>
@@ -119,7 +122,7 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-gray-800">
+      <div className="p-4 border-t border-amber-900/30 bg-[#130c07]/70">
         <div className="flex gap-2">
           <input
             type="text"
@@ -127,11 +130,11 @@ export default function Chat() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
             placeholder="Type a message..."
-            className="flex-1 px-4 py-3 bg-gray-800 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-4 py-3 bg-[#21150e] border border-amber-900/30 rounded-lg text-white placeholder-[#8c7867] focus:outline-none focus:ring-2 focus:ring-amber-600"
           />
           <button
             onClick={sendMessage}
-            className="px-6 py-3 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition cursor-pointer flex items-center gap-2"
+            className="px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 rounded-lg font-semibold hover:from-amber-500 hover:to-orange-500 transition cursor-pointer flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -141,5 +144,13 @@ export default function Chat() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function Chat() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-[#0e0a07]" />}>
+      <ChatContent />
+    </Suspense>
   )
 }

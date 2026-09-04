@@ -67,6 +67,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
   const dropdownRef = useRef<HTMLDivElement>(null)
   const filterPanelRef = useRef<HTMLDivElement>(null)
   const fetchTimer = useRef<NodeJS.Timeout | null>(null)
+  const suggestionRequest = useRef<AbortController | null>(null)
 
   // Load history on mount
   useEffect(() => {
@@ -90,18 +91,26 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
   // Fetch suggestions when query changes
   useEffect(() => {
     if (fetchTimer.current) clearTimeout(fetchTimer.current)
+    suggestionRequest.current?.abort()
 
     fetchTimer.current = setTimeout(async () => {
+      const controller = new AbortController()
+      suggestionRequest.current = controller
       try {
-        const res = await fetch(`/api/suggestions?q=${encodeURIComponent(query)}`)
+        const res = await fetch(`/api/suggestions?q=${encodeURIComponent(query)}`, { signal: controller.signal })
         const data = await res.json()
         setSuggestions(data.suggestions || [])
       } catch (err) {
-        console.error(err)
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          console.error(err)
+        }
       }
     }, 200)
 
-    return () => { if (fetchTimer.current) clearTimeout(fetchTimer.current) }
+    return () => {
+      if (fetchTimer.current) clearTimeout(fetchTimer.current)
+      suggestionRequest.current?.abort()
+    }
   }, [query])
 
   // Close dropdown on outside click
@@ -149,7 +158,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
 
   const getAllItems = useCallback((): Suggestion[] => {
     const items: Suggestion[] = []
-    if (history.length > 0) {
+    if (query.length === 0 && history.length > 0) {
       items.push(...history.slice(0, 3).map(h => ({ text: h, type: 'history' })))
     }
     const src = query.length > 0 ? suggestions : trending
@@ -194,7 +203,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="w-full pl-12 pr-20 py-4 bg-gray-900 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg transition-all"
+            className="w-full pl-12 pr-20 py-4 bg-[#1c130d]/90 border border-amber-900/35 rounded-xl text-white placeholder-[#8c7867] focus:outline-none focus:ring-2 focus:ring-amber-600 text-lg transition-all"
             autoFocus={autoFocus}
           />
           <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -203,7 +212,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
               type="button"
               onClick={() => setShowFilters(!showFilters)}
               className={`p-1.5 rounded-lg transition cursor-pointer ${
-                showFilters ? 'bg-purple-600/30 text-purple-400' : 'text-gray-500 hover:text-white'
+                showFilters ? 'bg-amber-600/20 text-amber-300' : 'text-[#8c7867] hover:text-[#f5ebe0]'
               }`}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,7 +237,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
 
       {/* Filter Panel */}
       {showFilters && (
-        <div ref={filterPanelRef} className="absolute top-full left-0 right-0 mt-2 bg-gray-900 rounded-xl border border-gray-800 shadow-2xl p-4 z-50">
+        <div ref={filterPanelRef} className="absolute top-full left-0 right-0 mt-2 bg-[#1c130d] rounded-xl border border-amber-900/35 shadow-2xl p-4 z-50">
           <div className="grid grid-cols-2 gap-4">
             {/* Sort By */}
             <div>
@@ -245,8 +254,8 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
                     onClick={() => handleFilterChange('sortBy', opt.value)}
                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition cursor-pointer ${
                       filters.sortBy === opt.value
-                        ? 'bg-purple-600/30 text-purple-400'
-                        : 'text-gray-300 hover:bg-gray-800'
+                        ? 'bg-amber-600/20 text-amber-300'
+                        : 'text-[#d4c3b3] hover:bg-[#2b1d14]'
                     }`}
                   >
                     {opt.label}
@@ -271,8 +280,8 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
                     onClick={() => handleFilterChange('site', opt.value)}
                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition cursor-pointer ${
                       filters.site === opt.value
-                        ? 'bg-purple-600/30 text-purple-400'
-                        : 'text-gray-300 hover:bg-gray-800'
+                        ? 'bg-amber-600/20 text-amber-300'
+                        : 'text-[#d4c3b3] hover:bg-[#2b1d14]'
                     }`}
                   >
                     {opt.label}
@@ -285,9 +294,9 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
       )}
 
       {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1c130d] rounded-xl border border-amber-900/35 shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto">
           {/* Recent Searches */}
-          {history.length > 0 && (
+          {history.length > 0 && !query && (
             <div className="p-2 border-b border-gray-800">
               <div className="px-4 py-1.5 flex items-center justify-between">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent</span>
@@ -308,7 +317,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
                   onClick={() => handleSelect(h)}
                   onMouseEnter={() => setHighlighted(i)}
                   className={`w-full text-left px-4 py-2.5 rounded-lg text-sm flex items-center gap-3 transition cursor-pointer ${
-                    highlighted === i ? 'bg-purple-600/30 text-purple-400' : 'text-gray-300 hover:bg-gray-800'
+                    highlighted === i ? 'bg-amber-600/20 text-amber-300' : 'text-[#d4c3b3] hover:bg-[#2b1d14]'
                   }`}
                 >
                   <ClockIcon className="w-4 h-4 text-gray-500" />
@@ -326,17 +335,21 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
               </span>
             </div>
             {(query.length > 0 ? suggestions : trending).slice(0, 8).map((s, i) => {
-              const idx = history.length + i
+              const idx = query.length === 0 ? history.length + i : i
               return (
                 <button
                   key={`s-${i}`}
                   onClick={() => handleSelect(s.text)}
                   onMouseEnter={() => setHighlighted(idx)}
                   className={`w-full text-left px-4 py-2.5 rounded-lg text-sm flex items-center gap-3 transition cursor-pointer ${
-                    highlighted === idx ? 'bg-purple-600/30 text-purple-400' : 'text-gray-300 hover:bg-gray-800'
+                    highlighted === idx ? 'bg-amber-600/20 text-amber-300' : 'text-[#d4c3b3] hover:bg-[#2b1d14]'
                   }`}
                 >
-                  <FireIcon className="w-4 h-4 text-orange-500" />
+                  {s.type === 'query' ? (
+                    <SearchIcon className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <FireIcon className="w-4 h-4 text-orange-500" />
+                  )}
                   <span>{highlightMatch(s.text, query)}</span>
                 </button>
               )
@@ -358,7 +371,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <span className="text-purple-400 font-semibold">{text.slice(idx, idx + query.length)}</span>
+      <span className="text-amber-300 font-semibold">{text.slice(idx, idx + query.length)}</span>
       {text.slice(idx + query.length)}
     </>
   )

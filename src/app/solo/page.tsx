@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PlayIcon, HomeIcon, SearchIcon } from '@/components/icons'
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
@@ -11,6 +11,7 @@ import { filterSeen, markSeen } from '@/utils/dedup'
 interface Video {
   videoId: string
   thumbnail: string | null
+  preview?: string | null
   title: string
   duration?: string | null
   views?: string | null
@@ -34,19 +35,27 @@ export default function Solo() {
   const [extracting, setExtracting] = useState(false)
   const [searched, setSearched] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const lastSearch = useRef<{ query: string; filters: SearchFilters; page: number } | null>(null)
 
-  const searchVideos = useCallback(async (query: string, filters: SearchFilters) => {
+  const searchVideos = useCallback(async (query: string, filters: SearchFilters, page = 1, append = false) => {
     if (!query.trim()) return
+
+    if (append) setLoadingMore(true)
+    else lastSearch.current = { query, filters, page: 1 }
 
     // Create cache key including filters
     const cacheKey = `${query}_${filters.sortBy}_${filters.site}`
 
     // Check cache first
-    if (videoCache.has(cacheKey)) {
+    if (!append && videoCache.has(cacheKey)) {
       const cached = videoCache.get(cacheKey)!
       const unseen = await filterSeen(cached)
       setVideos(unseen)
       setSearched(true)
+      lastSearch.current = { query, filters, page: 1 }
+      setHasMore(true)
       return
     }
 
@@ -55,6 +64,7 @@ export default function Solo() {
     try {
       const params = new URLSearchParams({
         q: query,
+        page: String(page),
         sort: filters.sortBy,
         site: filters.site,
       })
@@ -62,9 +72,10 @@ export default function Solo() {
       const data = await res.json()
 
       if (Array.isArray(data)) {
-        const results: Video[] = data.slice(0, 20).map((v: Record<string, unknown>) => ({
+        const results: Video[] = data.slice(0, 40).map((v: Record<string, unknown>) => ({
           videoId: String(v.videoId || ''),
           thumbnail: v.thumbnail as string | null,
+          preview: v.preview as string | null,
           title: String(v.title || 'Untitled'),
           duration: v.duration as string | null,
           views: v.views as string | null,
@@ -73,22 +84,36 @@ export default function Solo() {
           hash: v.hash as string,
         }))
 
-        videoCache.set(cacheKey, results)
+        if (!append) videoCache.set(cacheKey, results)
 
         // Filter out seen videos
         const unseen = await filterSeen(results)
-        setVideos(unseen)
+        setVideos(prev => append
+          ? [...prev, ...unseen.filter(video => !prev.some(existing => existing.hash === video.hash))]
+          : unseen
+        )
+        lastSearch.current = { query, filters, page }
+        setHasMore(data.length > 0)
       }
     } catch (err) {
       console.error('Search failed:', err)
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
     }
-    setLoading(false)
   }, [])
 
   const handleSearch = useCallback((query: string, filters: SearchFilters) => {
     setSearchQuery(query)
     searchVideos(query, filters)
   }, [searchVideos])
+
+  const loadMore = useCallback(() => {
+    const currentSearch = lastSearch.current
+    if (currentSearch && !loadingMore) {
+      searchVideos(currentSearch.query, currentSearch.filters, currentSearch.page + 1, true)
+    }
+  }, [loadingMore, searchVideos])
 
   const handleVideoClick = useCallback(async (video: Video) => {
     // Check if already seen
@@ -163,22 +188,22 @@ export default function Solo() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-[#0e0a07] text-[#f5ebe0]">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+      <div className="p-4 border-b border-amber-900/30 bg-[#130c07]/80 backdrop-blur-md flex justify-between items-center">
         <h2 className="text-xl font-bold flex items-center gap-2">
-          <PlayIcon className="w-6 h-6 text-purple-500" /> Solo Mode
+          <PlayIcon className="w-6 h-6 text-amber-400" /> Solo Mode
         </h2>
         <div className="flex gap-2">
           <button
             onClick={() => router.push('/queue')}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-pink-600 rounded-lg text-sm font-semibold hover:opacity-90 transition cursor-pointer flex items-center gap-2"
+            className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 rounded-lg text-sm font-semibold hover:from-amber-500 hover:to-orange-500 transition cursor-pointer flex items-center gap-2"
           >
             <SearchIcon className="w-4 h-4" /> Find Match
           </button>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-gray-700 rounded-lg text-sm hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
+            className="px-4 py-2 bg-[#261b14] border border-amber-900/35 rounded-lg text-sm hover:bg-[#32231a] transition cursor-pointer flex items-center gap-2"
           >
             <HomeIcon className="w-4 h-4" /> Home
           </button>
@@ -243,16 +268,29 @@ export default function Solo() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {videos.map((video) => (
                 <VideoCard
-                  key={video.hash || video.videoId}
+                  key={`${video.hash || video.videoId}_${video.thumbnail || ''}`}
                   videoId={video.videoId}
                   title={video.title}
                   thumbnail={video.thumbnail}
+                  preview={video.preview}
                   duration={video.duration}
                   views={video.views}
                   site={video.site}
                   onClick={() => handleVideoClick(video)}
                 />
               ))}
+            </div>
+          )}
+
+          {searched && videos.length > 0 && hasMore && (
+            <div className="flex justify-center py-10">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-6 py-3 bg-gray-800 rounded-lg text-sm font-semibold text-gray-200 hover:bg-gray-700 disabled:opacity-50 transition cursor-pointer"
+              >
+                {loadingMore ? 'Loading...' : 'Load more'}
+              </button>
             </div>
           )}
         </div>

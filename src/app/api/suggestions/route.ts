@@ -8,13 +8,17 @@ export async function GET(request: Request) {
     let suggestions: { text: string; type: string }[] = []
 
     if (q.length > 0) {
-      // Return related suggestions based on common adult search patterns
-      const related = [
+      const curated: Record<string, string[]> = {
+        squirting: ['squirting orgasm', 'female squirting', 'squirting compilation', 'squirting pov', 'squirting homemade', 'squirting solo'],
+      }
+      const related = curated[q.toLowerCase()] || [
         `${q} amateur`, `${q} homemade`, `${q} compilation`,
-        `${q} solo`, `${q} lesbian`, `${q} big`,
-        `${q}teen`, `${q} mature`,
+        `${q} solo`, `${q} pov`, `${q} orgasm`, `${q} mature`,
       ]
-      suggestions = related.slice(0, 8).map(text => ({ text, type: 'suggestion' }))
+      suggestions = [q, ...related]
+        .filter((text, index, all) => all.indexOf(text) === index)
+        .slice(0, 8)
+        .map((text, index) => ({ text, type: index === 0 ? 'query' : 'suggestion' }))
     } else {
       // Trending/default suggestions
       const trending = [
