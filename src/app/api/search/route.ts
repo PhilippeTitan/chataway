@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     let blockMatch
 
     // Simpler approach: find all links to /video... and extract surrounding context
-    const linkRegex = /<a\s+[^>]*href="(\/video[a-zA-Z0-9]+\/[^"]+)"[^>]*title="([^"]*)"[^>]*>/g
+      const linkRegex = /<a\s+[^>]*href="(\/video[./][a-zA-Z0-9]+\/[^"]+)"[^>]*title="([^"]*)"[^>]*>/g
     let linkMatch
 
     while ((linkMatch = linkRegex.exec(html)) !== null && videos.length < 20) {

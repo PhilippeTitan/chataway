@@ -6,6 +6,12 @@ export default function SunsetBackdrop() {
       {/* Deep Earth / Warm Wood Base */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#140e0a] via-[#1a120c] to-[#0c0805]" />
 
+      {/* Subtle Warm Photographic Texture */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center opacity-25 mix-blend-luminosity filter blur-[2px] scale-105"
+        style={{ backgroundImage: "url('/images/sunset-terrace.jpg')" }}
+      />
+
       {/* Main Sunset Golden Glow Orb */}
       <div
         className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[720px] h-[520px] md:w-[980px] md:h-[640px] rounded-full opacity-65 blur-[130px] animate-sunset-glow"

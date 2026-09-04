@@ -120,11 +120,28 @@ export default function Landing() {
                 A Quiet Sunset Sanctuary
               </span>
 
-              <h1 className="text-3xl md:text-4xl font-serif text-[#fef9f5] font-light tracking-wide mb-4 leading-snug">
+              {/* Scenic Sunset Terrace Visual */}
+              <div className="relative w-full h-44 md:h-52 rounded-2xl overflow-hidden mb-6 border border-amber-900/40 shadow-inner group">
+                <img 
+                  src="/images/sunset-terrace.jpg" 
+                  alt="Tranquil Sunset Veranda" 
+                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-1000 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1c130d] via-transparent to-black/30" />
+                <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs text-[#f5ebe0]/90 font-serif italic">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Afternoon Ocean Breeze
+                  </span>
+                  <span>Golden Hour</span>
+                </div>
+              </div>
+
+              <h1 className="text-3xl md:text-4xl font-serif text-[#fef9f5] font-light tracking-wide mb-3 leading-snug">
                 Welcome. Take a breath and settle in.
               </h1>
 
-              <p className="text-[#c7b5a3] text-base md:text-lg leading-relaxed max-w-md mx-auto mb-10 font-light">
+              <p className="text-[#c7b5a3] text-sm md:text-base leading-relaxed max-w-md mx-auto mb-8 font-light">
                 CHATAway is a discreet, unhurried space for adults to converse, unwind, and share company without noise or judgment.
               </p>
 
@@ -271,42 +288,56 @@ export default function Landing() {
                 {/* Man Selection Card */}
                 <button
                   onClick={() => handleGenderSelect('man')}
-                  className="group relative p-6 rounded-2xl bg-gradient-to-b from-[#241911]/90 to-[#19110b]/90 border border-amber-900/40 hover:border-amber-500/60 transition-all duration-300 hover:scale-[1.02] cursor-pointer shadow-lg hover:shadow-[0_12px_30px_-6px_rgba(245,158,11,0.25)] text-left"
+                  className="group relative rounded-2xl overflow-hidden bg-gradient-to-b from-[#241911]/90 to-[#19110b]/90 border border-amber-900/40 hover:border-amber-500/60 transition-all duration-300 hover:scale-[1.02] cursor-pointer shadow-lg hover:shadow-[0_16px_36px_-6px_rgba(245,158,11,0.3)] text-left flex flex-col"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-amber-950/70 border border-amber-800/40 flex items-center justify-center mb-4 text-amber-400 group-hover:text-amber-300 transition-colors">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+                  <div className="relative w-full h-44 overflow-hidden">
+                    <img 
+                      src="/images/presence-man.jpg" 
+                      alt="Man at sunset" 
+                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#19110b] via-[#19110b]/40 to-transparent" />
                   </div>
-                  <h2 className="text-xl font-serif text-[#fef9f5] font-normal mb-1">
-                    As a Man
-                  </h2>
-                  <p className="text-xs text-[#a89582] group-hover:text-[#c7b5a3] transition-colors">
-                    Looking to connect with women in an unhurried, comfortable setting.
-                  </p>
-                  <div className="mt-4 flex items-center text-xs font-medium text-amber-400/90 group-hover:text-amber-300">
-                    <span>Continue as Man &rarr;</span>
+                  <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h2 className="text-xl font-serif text-[#fef9f5] font-normal mb-1">
+                        As a Man
+                      </h2>
+                      <p className="text-xs text-[#a89582] group-hover:text-[#c7b5a3] transition-colors leading-relaxed">
+                        Looking to connect with women in an unhurried, comfortable setting.
+                      </p>
+                    </div>
+                    <div className="mt-4 flex items-center text-xs font-medium text-amber-400/90 group-hover:text-amber-300">
+                      <span>Continue as Man &rarr;</span>
+                    </div>
                   </div>
                 </button>
 
                 {/* Woman Selection Card */}
                 <button
                   onClick={() => handleGenderSelect('woman')}
-                  className="group relative p-6 rounded-2xl bg-gradient-to-b from-[#261814]/90 to-[#1b100d]/90 border border-orange-900/40 hover:border-orange-500/60 transition-all duration-300 hover:scale-[1.02] cursor-pointer shadow-lg hover:shadow-[0_12px_30px_-6px_rgba(234,88,12,0.25)] text-left"
+                  className="group relative rounded-2xl overflow-hidden bg-gradient-to-b from-[#261814]/90 to-[#1b100d]/90 border border-orange-900/40 hover:border-orange-500/60 transition-all duration-300 hover:scale-[1.02] cursor-pointer shadow-lg hover:shadow-[0_16px_36px_-6px_rgba(234,88,12,0.3)] text-left flex flex-col"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-orange-950/70 border border-orange-800/40 flex items-center justify-center mb-4 text-orange-400 group-hover:text-orange-300 transition-colors">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
+                  <div className="relative w-full h-44 overflow-hidden">
+                    <img 
+                      src="/images/presence-woman.jpg" 
+                      alt="Woman at sunset" 
+                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#1b100d] via-[#1b100d]/40 to-transparent" />
                   </div>
-                  <h2 className="text-xl font-serif text-[#fef9f5] font-normal mb-1">
-                    As a Woman
-                  </h2>
-                  <p className="text-xs text-[#a89582] group-hover:text-[#c7b5a3] transition-colors">
-                    Looking to connect with men in an unhurried, comfortable setting.
-                  </p>
-                  <div className="mt-4 flex items-center text-xs font-medium text-orange-400/90 group-hover:text-orange-300">
-                    <span>Continue as Woman &rarr;</span>
+                  <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h2 className="text-xl font-serif text-[#fef9f5] font-normal mb-1">
+                        As a Woman
+                      </h2>
+                      <p className="text-xs text-[#a89582] group-hover:text-[#c7b5a3] transition-colors leading-relaxed">
+                        Looking to connect with men in an unhurried, comfortable setting.
+                      </p>
+                    </div>
+                    <div className="mt-4 flex items-center text-xs font-medium text-orange-400/90 group-hover:text-orange-300">
+                      <span>Continue as Woman &rarr;</span>
+                    </div>
                   </div>
                 </button>
               </div>

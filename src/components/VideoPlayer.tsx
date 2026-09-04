@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import Hls from 'hls.js'
 import { PlayIcon, PauseIcon, VolumeIcon, BackIcon, FullscreenIcon } from '@/components/icons'
 
 interface VideoPlayerProps {
@@ -30,6 +31,17 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
     const video = videoRef.current
     if (!video) return
 
+    let hls: Hls | null = null
+    const isHls = streamUrl.includes('.m3u8')
+
+    if (isHls && Hls.isSupported()) {
+      hls = new Hls()
+      hls.loadSource(proxyUrl)
+      hls.attachMedia(video)
+    } else {
+      video.src = proxyUrl
+    }
+
     const handleTimeUpdate = () => {
       if (video.duration) {
         setProgress((video.currentTime / video.duration) * 100)
@@ -47,12 +59,13 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
     video.addEventListener('ended', handleEnded)
 
     return () => {
+      hls?.destroy()
       video.removeEventListener('timeupdate', handleTimeUpdate)
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('ended', handleEnded)
     }
-  }, [])
+  }, [proxyUrl, streamUrl])
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60)

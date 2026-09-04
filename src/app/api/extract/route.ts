@@ -50,9 +50,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const pythonCommand = process.platform === 'win32' ? 'py' : 'python3'
+    const pythonArgs = process.platform === 'win32' ? ['-3.13', 'scripts/extract_url.py', url] : ['scripts/extract_url.py', url]
     const { stdout, stderr } = await execFileAsync(
-      'python3',
-      ['scripts/extract_url.py', url],
+      pythonCommand,
+      pythonArgs,
       { timeout: 60000 }
     )
 
