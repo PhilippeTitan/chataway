@@ -8,13 +8,19 @@ interface Suggestion {
   type: string
 }
 
+export interface SearchFilters {
+  sortBy: 'relevance' | 'views' | 'date' | 'duration'
+  site: 'all' | 'xvideos' | 'pornhub' | 'xhamster' | 'xnxx'
+}
+
 interface SearchAutocompleteProps {
-  onSearch: (query: string) => void
+  onSearch: (query: string, filters: SearchFilters) => void
   placeholder?: string
   autoFocus?: boolean
 }
 
 const HISTORY_KEY = 'chataway_search_history'
+const FILTERS_KEY = 'chataway_search_filters'
 const MAX_HISTORY = 8
 
 function getHistory(): string[] {
@@ -34,6 +40,17 @@ function clearHistory() {
   localStorage.removeItem(HISTORY_KEY)
 }
 
+function getSavedFilters(): SearchFilters {
+  if (typeof window === 'undefined') return { sortBy: 'relevance', site: 'all' }
+  try {
+    return JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}')
+  } catch { return { sortBy: 'relevance', site: 'all' } }
+}
+
+function saveFilters(filters: SearchFilters) {
+  localStorage.setItem(FILTERS_KEY, JSON.stringify(filters))
+}
+
 export default function SearchAutocomplete({ onSearch, placeholder = 'Search videos...', autoFocus = false }: SearchAutocompleteProps) {
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
@@ -41,8 +58,14 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
   const [history, setHistory] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(-1)
+  const [filters, setFilters] = useState<SearchFilters>(() => {
+    const saved = getSavedFilters()
+    return { sortBy: saved.sortBy || 'relevance', site: saved.site || 'all' }
+  })
+  const [showFilters, setShowFilters] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const filterPanelRef = useRef<HTMLDivElement>(null)
   const fetchTimer = useRef<NodeJS.Timeout | null>(null)
 
   // Load history on mount
@@ -87,6 +110,9 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
+      if (filterPanelRef.current && !filterPanelRef.current.contains(e.target as Node)) {
+        setShowFilters(false)
+      }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -97,9 +123,10 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
     setOpen(false)
     saveToHistory(text)
     setHistory(getHistory())
-    onSearch(text)
+    saveFilters(filters)
+    onSearch(text, filters)
     inputRef.current?.blur()
-  }, [onSearch])
+  }, [onSearch, filters])
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
@@ -107,6 +134,18 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
       handleSelect(query.trim())
     }
   }, [query, handleSelect])
+
+  const handleFilterChange = useCallback((key: keyof SearchFilters, value: string) => {
+    setFilters(prev => {
+      const newFilters = { ...prev, [key]: value }
+      saveFilters(newFilters)
+      // Re-search with new filters if there's a query
+      if (query.trim()) {
+        onSearch(query.trim(), newFilters)
+      }
+      return newFilters
+    })
+  }, [query, onSearch])
 
   const getAllItems = useCallback((): Suggestion[] => {
     const items: Suggestion[] = []
@@ -155,23 +194,95 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="w-full pl-12 pr-12 py-4 bg-gray-900 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg transition-all"
+            className="w-full pl-12 pr-20 py-4 bg-gray-900 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg transition-all"
             autoFocus={autoFocus}
           />
-          {query && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            {/* Filter button */}
             <button
               type="button"
-              onClick={() => {
-                setQuery('')
-                inputRef.current?.focus()
-              }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition cursor-pointer"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-1.5 rounded-lg transition cursor-pointer ${
+                showFilters ? 'bg-purple-600/30 text-purple-400' : 'text-gray-500 hover:text-white'
+              }`}
             >
-              <XIcon className="w-5 h-5" />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
             </button>
-          )}
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('')
+                  inputRef.current?.focus()
+                }}
+                className="text-gray-500 hover:text-white transition cursor-pointer"
+              >
+                <XIcon className="w-5 h-5" />
+              </button>
+            )}
+          </div>
         </div>
       </form>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div ref={filterPanelRef} className="absolute top-full left-0 right-0 mt-2 bg-gray-900 rounded-xl border border-gray-800 shadow-2xl p-4 z-50">
+          <div className="grid grid-cols-2 gap-4">
+            {/* Sort By */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Sort By</label>
+              <div className="space-y-1">
+                {[
+                  { value: 'relevance', label: 'Relevance' },
+                  { value: 'views', label: 'Most Viewed' },
+                  { value: 'date', label: 'Newest' },
+                  { value: 'duration', label: 'Duration' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleFilterChange('sortBy', opt.value)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition cursor-pointer ${
+                      filters.sortBy === opt.value
+                        ? 'bg-purple-600/30 text-purple-400'
+                        : 'text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Site Filter */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Site</label>
+              <div className="space-y-1">
+                {[
+                  { value: 'all', label: 'All Sites' },
+                  { value: 'xvideos', label: 'XVideos' },
+                  { value: 'pornhub', label: 'Pornhub' },
+                  { value: 'xhamster', label: 'XHamster' },
+                  { value: 'xnxx', label: 'XNXX' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleFilterChange('site', opt.value)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition cursor-pointer ${
+                      filters.site === opt.value
+                        ? 'bg-purple-600/30 text-purple-400'
+                        : 'text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDropdown && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto">

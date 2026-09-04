@@ -1,13 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckIcon, WarningIcon } from '@/components/icons'
+import Link from 'next/link'
+import { CheckIcon, WarningIcon, UserIcon } from '@/components/icons'
+import { useUser } from '@/utils/supabase/useUser'
 
 export default function Landing() {
   const router = useRouter()
+  const { user, isAnonymous, signInAnonymously, signOut } = useUser()
   const [step, setStep] = useState<'age' | 'tos' | 'gender'>('age')
   const [gender, setGender] = useState<'man' | 'woman' | null>(null)
+
+  // Ensure an anonymous session is provisioned once TOS is accepted if user is not already logged in
+  const handleAcceptTos = async () => {
+    if (!user) {
+      await signInAnonymously()
+    }
+    setStep('gender')
+  }
 
   const handleGenderSelect = (g: 'man' | 'woman') => {
     setGender(g)
@@ -15,9 +26,53 @@ export default function Landing() {
     router.push('/interests')
   }
 
+  const renderTopBar = () => (
+    <header className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10">
+      <div className="text-sm font-semibold tracking-wider text-gray-500 uppercase">
+        CHATAway
+      </div>
+      <div className="flex items-center gap-3">
+        {user ? (
+          <div className="flex items-center gap-2 text-xs bg-gray-900 border border-gray-800 py-1.5 px-3 rounded-full text-gray-300">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isAnonymous ? 'bg-yellow-500' : 'bg-green-500'
+              }`}
+            ></span>
+            <span>{isAnonymous ? 'Guest Session' : user.email}</span>
+            {isAnonymous ? (
+              <Link
+                href="/login"
+                className="ml-2 text-purple-400 hover:text-purple-300 font-medium underline"
+              >
+                Sign In
+              </Link>
+            ) : (
+              <button
+                onClick={() => signOut()}
+                className="ml-2 text-gray-400 hover:text-white cursor-pointer"
+              >
+                Sign Out
+              </button>
+            )}
+          </div>
+        ) : (
+          <Link
+            href="/login"
+            className="flex items-center gap-1.5 text-xs bg-gray-900 hover:bg-gray-800 border border-gray-800 py-1.5 px-3.5 rounded-full text-gray-300 hover:text-white transition"
+          >
+            <UserIcon className="w-3.5 h-3.5" />
+            <span>Sign In</span>
+          </Link>
+        )}
+      </div>
+    </header>
+  )
+
   if (step === 'age') {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-4">
+      <div className="relative min-h-screen bg-black text-white flex flex-col items-center justify-center px-4">
+        {renderTopBar()}
         <h1 className="text-5xl font-bold mb-4">CHATAway</h1>
         <p className="text-gray-400 mb-10 text-lg">Anonymous connections. No BS.</p>
         
@@ -45,7 +100,8 @@ export default function Landing() {
 
   if (step === 'tos') {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-4">
+      <div className="relative min-h-screen bg-black text-white flex flex-col items-center justify-center px-4">
+        {renderTopBar()}
         <h1 className="text-5xl font-bold mb-4">CHATAway</h1>
         <p className="text-gray-400 mb-10 text-lg">Anonymous connections. No BS.</p>
         
@@ -64,7 +120,7 @@ export default function Landing() {
             </ul>
           </div>
           <button 
-            onClick={() => setStep('gender')}
+            onClick={handleAcceptTos}
             className="w-full py-3 bg-blue-600 rounded-lg text-lg font-semibold hover:bg-blue-700 transition cursor-pointer flex items-center justify-center gap-2"
           >
             <CheckIcon className="w-5 h-5" /> I Accept
@@ -75,7 +131,8 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-4">
+    <div className="relative min-h-screen bg-black text-white flex flex-col items-center justify-center px-4">
+      {renderTopBar()}
       <h1 className="text-5xl font-bold mb-4">CHATAway</h1>
       <p className="text-gray-400 mb-10 text-lg">Anonymous connections. No BS.</p>
       

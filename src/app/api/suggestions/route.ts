@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 
-const PH_API = 'https://www.pornhub.com/webmasters/search'
+const execFileAsync = promisify(execFile)
 
-async function fetchVideos(query: string, page = 1): Promise<Record<string, unknown>[]> {
+async function searchVideos(query: string, page = 1): Promise<Record<string, unknown>[]> {
   try {
-    const res = await fetch(
-      `${PH_API}?search=${encodeURIComponent(query)}&page=${page}`,
-      { headers: { 'User-Agent': 'CHATAway/1.0' } }
+    const { stdout } = await execFileAsync(
+      'python3',
+      ['scripts/xvideos_search.py', query, String(page), 'relevance'],
+      { timeout: 15000 }
     )
-    if (!res.ok) return []
-    const data = await res.json()
-    return data.videos || []
+    return JSON.parse(stdout)
   } catch {
     return []
   }
@@ -48,23 +49,16 @@ export async function GET(request: Request) {
     let suggestions: { text: string; type: string }[] = []
 
     if (q.length > 0) {
-      // Fetch real videos matching the query
-      const videos = await fetchVideos(q)
-      
-      // Extract keywords from titles as suggestions
+      const videos = await searchVideos(q)
       const keywords = extractKeywords(videos)
-      
-      // Build suggestions: related keywords from real results
       suggestions = keywords.slice(0, 8).map(k => ({
         text: `${q} ${k.text}`,
         type: 'suggestion'
       }))
     } else {
-      // Fetch popular/trending videos to show real trending searches
-      const popular = await fetchVideos('popular', 1)
-      const newest = await fetchVideos('new', 1)
+      const popular = await searchVideos('popular', 1)
+      const newest = await searchVideos('new', 1)
       const allVideos = [...popular, ...newest]
-      
       suggestions = extractKeywords(allVideos).slice(0, 8)
     }
 

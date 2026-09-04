@@ -2,10 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { StarIcon, SearchIcon, VideoIcon, ReportIcon, HomeIcon, RefreshIcon, CheckIcon } from '@/components/icons'
+import Link from 'next/link'
+import { StarIcon, SearchIcon, VideoIcon, ReportIcon, HomeIcon, RefreshIcon, CheckIcon, UserIcon } from '@/components/icons'
+import { useUser } from '@/utils/supabase/useUser'
 
 export default function End() {
   const router = useRouter()
+  const { user, isAnonymous } = useUser()
   const [rating, setRating] = useState<number | null>(null)
   const [reportOpen, setReportOpen] = useState(false)
   const [reportReason, setReportReason] = useState('')
@@ -92,6 +95,15 @@ export default function End() {
           >
             <HomeIcon className="w-5 h-5" /> Back to Home
           </button>
+
+          {(!user || isAnonymous) && (
+            <Link
+              href="/login"
+              className="block w-full py-2.5 text-center text-xs text-purple-400 hover:text-purple-300 font-medium hover:underline transition"
+            >
+              Save favorites & preferences? Create an account
+            </Link>
+          )}
         </div>
 
         {/* Report Form */}

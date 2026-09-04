@@ -113,6 +113,12 @@ export const SendIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   </svg>
 )
 
+export const FullscreenIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+  </svg>
+)
+
 export const WarningIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
