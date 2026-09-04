@@ -7,31 +7,45 @@ export async function GET(request: NextRequest) {
     return new Response('URL required', { status: 400 })
   }
 
-  // Validate URL is from allowed CDN domains
-  const allowedDomains = [
-    'phncdn.com',
-    'ci.phncdn.com',
-    'hw.phncdn.com',
-    'pornhub.com',
-    'xvideos.com',
-    'xhamster.com',
-  ]
-
+  // Validate URL
+  let urlObj: URL
   try {
-    const urlObj = new URL(url)
-    if (!allowedDomains.some(domain => urlObj.hostname.includes(domain))) {
-      return new Response('Domain not allowed', { status: 403 })
-    }
+    urlObj = new URL(url)
   } catch {
     return new Response('Invalid URL', { status: 400 })
+  }
+
+  // Block local/private IPs
+  const hostname = urlObj.hostname
+  if (
+    hostname === 'localhost' ||
+    hostname.startsWith('127.') ||
+    hostname.startsWith('10.') ||
+    hostname.startsWith('192.168.') ||
+    hostname.includes('localhost')
+  ) {
+    return new Response('Private URL blocked', { status: 403 })
   }
 
   // Forward range requests for video seeking
   const range = request.headers.get('range')
   const headers: Record<string, string> = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer': 'https://www.xvideos.com/',
-    'Origin': 'https://www.xvideos.com',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  }
+
+  // Set referer based on the CDN host
+  if (hostname.includes('xvideos') || hostname.includes('cdn-xvideos')) {
+    headers['Referer'] = 'https://www.xvideos.com/'
+    headers['Origin'] = 'https://www.xvideos.com'
+  } else if (hostname.includes('pornhub') || hostname.includes('phncdn')) {
+    headers['Referer'] = 'https://www.pornhub.com/'
+    headers['Origin'] = 'https://www.pornhub.com'
+  } else if (hostname.includes('xhamster') || hostname.includes('xhcdn')) {
+    headers['Referer'] = 'https://www.xhamster.com/'
+    headers['Origin'] = 'https://www.xhamster.com'
+  } else if (hostname.includes('xnxx')) {
+    headers['Referer'] = 'https://www.xnxx.com/'
+    headers['Origin'] = 'https://www.xnxx.com'
   }
 
   if (range) {
@@ -41,7 +55,6 @@ export async function GET(request: NextRequest) {
   try {
     const response = await fetch(url, { headers })
 
-    // Stream the response back with CORS headers
     const newHeaders = new Headers()
     newHeaders.set('Access-Control-Allow-Origin', '*')
     newHeaders.set('Content-Type', response.headers.get('Content-Type') || 'video/mp4')
@@ -60,7 +73,7 @@ export async function GET(request: NextRequest) {
       status: response.status,
       headers: newHeaders,
     })
-  } catch (error) {
+  } catch {
     return new Response('Proxy failed', { status: 500 })
   }
 }

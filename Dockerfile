@@ -4,12 +4,14 @@ FROM node:20-slim
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
+    python3-venv \
     ffmpeg \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Set Python3 as default python
 RUN ln -sf /usr/bin/python3 /usr/bin/python
