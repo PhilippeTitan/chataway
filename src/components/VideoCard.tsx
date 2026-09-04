@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { PlayIcon, EyeIcon, BadgeCheckIcon, MoreVerticalIcon } from '@/components/icons'
 
 interface VideoCardProps {
@@ -32,6 +32,23 @@ export default function VideoCard({
   const [imageSrc, setImageSrc] = useState(thumbnail)
   const [isHovering, setIsHovering] = useState(false)
   const [previewError, setPreviewError] = useState(false)
+  const [inView, setInView] = useState(false)
+  const cardRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const node = cardRef.current
+    if (!node) return
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => setInView(entry.isIntersecting))
+    }, {
+      rootMargin: '250px 0px',
+      threshold: 0.01,
+    })
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   const fallbackImageSrc = thumbnail?.replace(
     /\/xv_[^/]+_t\.(jpg|jpeg|png|webp)$/i,
@@ -40,6 +57,7 @@ export default function VideoCard({
 
   return (
     <div
+      ref={cardRef}
       onClick={onClick}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
@@ -47,7 +65,7 @@ export default function VideoCard({
     >
       {/* Thumbnail */}
       <div className={`${variant === 'feed' ? 'aspect-[9/14] rounded-2xl' : 'aspect-video rounded-lg'} bg-[#1a120c] relative overflow-hidden mb-2`}>
-        {imageSrc && !imgError ? (
+        {inView && imageSrc && !imgError ? (
           <>
             <img
               src={`/api/proxy?url=${encodeURIComponent(imageSrc)}`}
@@ -79,7 +97,7 @@ export default function VideoCard({
         )}
 
         {/* Hover preview */}
-        {preview && isHovering && !previewError && (
+        {preview && isHovering && inView && !previewError && (
           <video
             src={`/api/proxy?url=${encodeURIComponent(preview)}`}
             className="absolute inset-0 w-full h-full object-cover"

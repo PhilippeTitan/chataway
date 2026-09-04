@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { PlayIcon, HomeIcon, SearchIcon, Spinner, GridIcon, FilmIcon } from '@/components/icons'
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
@@ -32,6 +32,8 @@ interface VideoWithStream extends Video {
 
 const videoCache = new Map<string, Video[]>()
 const clipCache = new Map<string, Clip[]>()
+const INITIAL_CLIP_COUNT = 10
+const INITIAL_VIDEO_COUNT = 12
 
 export default function Solo() {
   const router = useRouter()
@@ -45,24 +47,24 @@ export default function Solo() {
   const [searchQuery, setSearchQuery] = useState('')
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'feed'>('grid')
   const [contentMode, setContentMode] = useState<'videos' | 'clips'>('videos')
   const [selectedNiche, setSelectedNiche] = useState<string | null>(null)
-  const lastSearch = useRef<{ query: string; filters: SearchFilters; page: number } | null>(null)
+  const lastSearch = useRef<{ query: string; filters: SearchFilters; page: number; action: 'search' | 'trending' | 'niche' } | null>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
 
-  const searchClips = useCallback(async (query: string, action: string = 'search', append = false) => {
+  const searchClips = useCallback(async (query: string, action: string = 'search', append = false, page = 1) => {
     if (!query.trim() && action === 'search') return
 
     if (append) setLoadingMore(true)
-    else lastSearch.current = { query, filters: { sortBy: 'relevance', site: 'all' }, page: 1 }
+    else lastSearch.current = { query, filters: { sortBy: 'relevance', site: 'all' }, page: 1, action: action === 'niche' ? 'niche' : action === 'trending' ? 'trending' : 'search' }
 
-    const cacheKey = `${action}_${query}`
+    const cacheKey = `${action}_${query}_${page}`
 
-    if (!append && clipCache.has(cacheKey)) {
-      const cached = clipCache.get(cacheKey)!
+    if (!append && clipCache.has(`${action}_${query}`)) {
+      const cached = clipCache.get(`${action}_${query}`)!
       setClips(cached)
       setSearched(true)
-      setHasMore(true)
+      setHasMore(cached.length >= INITIAL_CLIP_COUNT)
       return
     }
 
@@ -72,7 +74,8 @@ export default function Solo() {
       const params = new URLSearchParams({
         q: query,
         action,
-        count: '30',
+        count: String(INITIAL_CLIP_COUNT),
+        page: String(page),
       })
       const res = await fetch(`/api/search-redgifs?${params.toString()}`)
       const data = await res.json()
@@ -95,12 +98,17 @@ export default function Solo() {
           hash: String(c.hash || ''),
         }))
 
-        if (!append) clipCache.set(cacheKey, results)
+        if (!append) clipCache.set(`${action}_${query}`, results)
         setClips(prev => append
           ? [...prev, ...results.filter(c => !prev.some(e => e.clipId === c.clipId))]
           : results
         )
-        setHasMore(data.length >= 30)
+        if (!append) {
+          lastSearch.current = { query, filters: { sortBy: 'relevance', site: 'all' }, page, action: action === 'niche' ? 'niche' : action === 'trending' ? 'trending' : 'search' }
+        } else if (lastSearch.current) {
+          lastSearch.current.page = page
+        }
+        setHasMore(data.length >= INITIAL_CLIP_COUNT)
       }
     } catch (err) {
       console.error('Clip search failed:', err)
@@ -114,7 +122,7 @@ export default function Solo() {
     if (!query.trim()) return
 
     if (append) setLoadingMore(true)
-    else lastSearch.current = { query, filters, page: 1 }
+    else lastSearch.current = { query, filters, page: 1, action: 'search' }
 
     const cacheKey = `${query}_${filters.sortBy}_${filters.site}`
 
@@ -123,7 +131,7 @@ export default function Solo() {
       const unseen = await filterSeen(cached)
       setVideos(unseen)
       setSearched(true)
-      lastSearch.current = { query, filters, page: 1 }
+      lastSearch.current = { query, filters, page: 1, action: 'search' }
       setHasMore(true)
       return
     }
@@ -141,7 +149,7 @@ export default function Solo() {
       const data = await res.json()
 
       if (Array.isArray(data)) {
-        const results: Video[] = data.slice(0, 40).map((v: Record<string, unknown>) => ({
+        const results: Video[] = data.slice(0, INITIAL_VIDEO_COUNT).map((v: Record<string, unknown>) => ({
           videoId: String(v.videoId || ''),
           thumbnail: v.thumbnail as string | null,
           preview: v.preview as string | null,
@@ -159,7 +167,7 @@ export default function Solo() {
           ? [...prev, ...unseen.filter(video => !prev.some(existing => existing.hash === video.hash))]
           : unseen
         )
-        lastSearch.current = { query, filters, page }
+        lastSearch.current = { query, filters, page, action: 'search' }
         setHasMore(data.length > 0)
       }
     } catch (err) {
@@ -172,6 +180,7 @@ export default function Solo() {
 
   const handleSearch = useCallback((query: string, filters: SearchFilters) => {
     setSearchQuery(query)
+    setSelectedNiche(null)
     if (contentMode === 'clips') {
       searchClips(query, 'search')
     } else {
@@ -181,6 +190,7 @@ export default function Solo() {
 
   const handleNicheSelect = useCallback((nicheId: string | null) => {
     setSelectedNiche(nicheId)
+    setContentMode('clips')
     if (nicheId) {
       searchClips(nicheId, 'niche')
     } else {
@@ -192,12 +202,29 @@ export default function Solo() {
     const currentSearch = lastSearch.current
     if (currentSearch && !loadingMore) {
       if (contentMode === 'clips') {
-        searchClips(currentSearch.query, 'search', true)
+        searchClips(currentSearch.query, currentSearch.action, true, currentSearch.page + 1)
       } else {
         searchVideos(currentSearch.query, currentSearch.filters, currentSearch.page + 1, true)
       }
     }
   }, [loadingMore, contentMode, searchClips, searchVideos])
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current
+    if (!sentinel || !hasMore || loadingMore || loading) return
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        loadMore()
+      }
+    }, {
+      rootMargin: '400px 0px',
+      threshold: 0.1,
+    })
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, loadingMore, loading, loadMore])
 
   async function handleVideoClick(video: Video) {
     if (video.hash) {
@@ -253,9 +280,23 @@ export default function Solo() {
       if (next === 'clips' && clips.length === 0) {
         searchClips('trending', 'trending')
       }
+      if (next === 'videos' && videos.length === 0) {
+        searchVideos('trending', { sortBy: 'relevance', site: 'all' })
+      }
       return next
     })
-  }, [clips.length, searchClips])
+  }, [clips.length, videos.length, searchClips, searchVideos])
+
+  useEffect(() => {
+    if (!searched) {
+      if (contentMode === 'clips' && clips.length === 0) {
+        searchClips('trending', 'trending')
+      }
+      if (contentMode === 'videos' && videos.length === 0) {
+        searchVideos('trending', { sortBy: 'relevance', site: 'all' })
+      }
+    }
+  }, [contentMode, searched, clips.length, videos.length, searchClips, searchVideos])
 
   if (selectedVideo && selectedVideo.streamUrl) {
     return (
@@ -334,12 +375,6 @@ export default function Solo() {
                 </button>
               </div>
 
-              {contentMode === 'videos' && (
-                <div className="inline-flex rounded-lg border border-amber-900/35 bg-[#1c130d]/80 p-1 ml-auto">
-                  <button onClick={() => setViewMode('grid')} className={`px-3 py-1.5 rounded-md text-xs transition cursor-pointer ${viewMode === 'grid' ? 'bg-amber-600 text-white' : 'text-gray-400 hover:text-white'}`}>Grid</button>
-                  <button onClick={() => setViewMode('feed')} className={`px-3 py-1.5 rounded-md text-xs transition cursor-pointer ${viewMode === 'feed' ? 'bg-amber-600 text-white' : 'text-gray-400 hover:text-white'}`}>Feed</button>
-                </div>
-              )}
             </div>
 
             {/* Search */}
@@ -424,7 +459,7 @@ export default function Solo() {
 
           {/* Videos Grid */}
           {contentMode === 'videos' && videos.length > 0 && (
-            <div className={viewMode === 'feed' ? 'max-w-md mx-auto space-y-8' : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children'}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children">
               {videos.map((video) => (
                 <div key={`${video.hash || video.videoId}_${video.thumbnail || ''}`} className="animate-slide-up">
                   <VideoCard
@@ -435,7 +470,6 @@ export default function Solo() {
                     duration={video.duration}
                     views={video.views}
                     site={video.site}
-                    variant={viewMode}
                     onClick={() => handleVideoClick(video)}
                   />
                 </div>
@@ -445,15 +479,18 @@ export default function Solo() {
 
           {/* Load More */}
           {searched && ((contentMode === 'clips' && clips.length > 0) || (contentMode === 'videos' && videos.length > 0)) && hasMore && (
-            <div className="flex justify-center py-10">
-              <button
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="px-6 py-3 bg-gray-800 rounded-lg text-sm font-semibold text-gray-200 hover:bg-gray-700 disabled:opacity-50 transition-all cursor-pointer btn-press"
-              >
-                {loadingMore ? 'Loading...' : 'Load more'}
-              </button>
-            </div>
+            <>
+              <div ref={loadMoreSentinelRef} className="h-10" aria-hidden="true" />
+              <div className="flex justify-center py-6">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="px-6 py-3 bg-gray-800 rounded-lg text-sm font-semibold text-gray-200 hover:bg-gray-700 disabled:opacity-50 transition-all cursor-pointer btn-press"
+                >
+                  {loadingMore ? 'Loading...' : 'Load more'}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

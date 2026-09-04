@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { PlayIcon, EyeIcon, BadgeCheckIcon, HeartIcon } from '@/components/icons'
 
 interface ClipCardProps {
@@ -8,6 +8,7 @@ interface ClipCardProps {
   title: string
   username: string
   thumbnail: string | null
+  preview?: string | null
   duration: number | null
   views: number | null
   likes: number | null
@@ -34,6 +35,7 @@ export default function ClipCard({
   title,
   username,
   thumbnail,
+  preview,
   duration,
   views,
   likes,
@@ -43,9 +45,30 @@ export default function ClipCard({
   const [imgLoaded, setImgLoaded] = useState(false)
   const [imgError, setImgError] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
+  const [previewError, setPreviewError] = useState(false)
+  const [inView, setInView] = useState(false)
+  const cardRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const node = cardRef.current
+    if (!node) return
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => setInView(entry.isIntersecting))
+    }, {
+      rootMargin: '250px 0px',
+      threshold: 0.01,
+    })
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  const shouldRenderImage = inView || isHovering
 
   return (
     <div
+      ref={cardRef}
       onClick={onClick}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
@@ -53,7 +76,7 @@ export default function ClipCard({
     >
       {/* Thumbnail */}
       <div className="relative rounded-xl overflow-hidden bg-[#1a120c]" style={{ aspectRatio: '9/14' }}>
-        {thumbnail && !imgError ? (
+        {shouldRenderImage && thumbnail && !imgError ? (
           <>
             <img
               src={thumbnail}
@@ -75,6 +98,18 @@ export default function ClipCard({
           <div className="w-full h-full flex items-center justify-center bg-[#1a120c]">
             <PlayIcon className="w-10 h-10 text-amber-900/40" />
           </div>
+        )}
+
+        {preview && isHovering && inView && !previewError && (
+          <video
+            src={`/api/proxy?url=${encodeURIComponent(preview)}`}
+            className="absolute inset-0 w-full h-full object-cover"
+            muted
+            loop
+            autoPlay
+            playsInline
+            onError={() => setPreviewError(true)}
+          />
         )}
 
         {/* Hover play overlay */}

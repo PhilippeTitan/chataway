@@ -1,19 +1,6 @@
 // Deduplication utility functions
 
 const LOCAL_STORAGE_PREFIX = 'seen_'
-const USER_ID_KEY = 'chataway_user_id'
-
-// Generate or retrieve user ID
-export function getUserId(): string {
-  if (typeof window === 'undefined') return 'server'
-  
-  let userId = localStorage.getItem(USER_ID_KEY)
-  if (!userId) {
-    userId = 'user_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36)
-    localStorage.setItem(USER_ID_KEY, userId)
-  }
-  return userId
-}
 
 // Check if video is seen in localStorage (fast check)
 export function isSeenLocal(hash: string): boolean {
@@ -30,11 +17,10 @@ export function markSeenLocal(hash: string): void {
 // Check if videos are seen via Supabase (cross-user)
 export async function checkSeenSupabase(hashes: string[]): Promise<string[]> {
   try {
-    const userId = getUserId()
     const res = await fetch('/api/dedup/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, hashes }),
+      body: JSON.stringify({ hashes }),
     })
     const data = await res.json()
     return data.seenHashes || []
@@ -46,11 +32,10 @@ export async function checkSeenSupabase(hashes: string[]): Promise<string[]> {
 // Mark video as seen in Supabase
 export async function markSeenSupabase(hash: string, site: string, videoId: string): Promise<void> {
   try {
-    const userId = getUserId()
     await fetch('/api/dedup/mark', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, hash, site, videoId }),
+      body: JSON.stringify({ hash, site, videoId }),
     })
   } catch {
     // Silent fail - localStorage is primary

@@ -18,6 +18,7 @@ export default function MasonryGrid({ clips, onClipClick }: MasonryGridProps) {
             title={clip.title}
             username={clip.username}
             thumbnail={clip.thumbnail}
+            preview={clip.preview || clip.sdUrl || clip.hdUrl}
             duration={clip.duration}
             views={clip.views}
             likes={clip.likes}

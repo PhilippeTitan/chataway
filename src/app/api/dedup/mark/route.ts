@@ -3,18 +3,23 @@ import { createClient } from '@/utils/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, hash, site, videoId } = await request.json()
+    const { hash, site, videoId } = await request.json()
 
-    if (!userId || !hash || !site || !videoId) {
+    if (!hash || !site || !videoId) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
     }
 
     const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
 
     const { error } = await supabase
       .from('seen_videos')
       .upsert({
-        user_id: userId,
+        user_id: user.id,
         video_hash: hash,
         site: site,
         video_id: videoId,

@@ -6,9 +6,12 @@ import hashlib
 
 try:
     import redgifs
+    from redgifs import API, Order
     HAS_REDGIFS = True
 except ImportError:
     HAS_REDGIFS = False
+    API = None
+    Order = None
 
 
 def create_hash(site: str, video_id: str) -> str:
@@ -18,6 +21,7 @@ def create_hash(site: str, video_id: str) -> str:
 def format_gif(gif) -> dict:
     """Convert a RedGifs gif object to our standard clip format."""
     urls = gif.urls if hasattr(gif, 'urls') else {}
+    preview = getattr(urls, 'preview', None) or getattr(urls, 'hd', None) or getattr(urls, 'sd', None)
     return {
         "clipId": gif.id,
         "title": getattr(gif, 'title', '') or '',
@@ -25,7 +29,7 @@ def format_gif(gif) -> dict:
         "thumbnail": getattr(urls, 'thumbnail', None),
         "hdUrl": getattr(urls, 'hd', None),
         "sdUrl": getattr(urls, 'sd', None),
-        "preview": getattr(urls, 'preview', None),
+        "preview": preview,
         "duration": round(gif.duration) if hasattr(gif, 'duration') and gif.duration else None,
         "views": getattr(gif, 'views', None),
         "likes": getattr(gif, 'likes', None),
@@ -40,9 +44,9 @@ def search_redgifs(query: str, count: int = 30, page: int = 1) -> list:
     if not HAS_REDGIFS:
         return [{"error": "redgifs library not installed"}]
     try:
-        api = redgifs.API()
+        api = API()
         api.login()
-        result = api.search(query, count=count, page=page, international=False)
+        result = api.search(query, order=Order.TRENDING, count=count, page=page)
         gifs = result.gifs if hasattr(result, 'gifs') else []
         return [format_gif(g) for g in gifs[:count]]
     except Exception as e:
@@ -53,9 +57,10 @@ def get_trending(count: int = 30) -> list:
     if not HAS_REDGIFS:
         return [{"error": "redgifs library not installed"}]
     try:
-        api = redgifs.API()
+        api = API()
         api.login()
-        gifs = api.get_trending_gifs()
+        result = api.search('trending', order=Order.TRENDING, count=count, page=1)
+        gifs = result.gifs if hasattr(result, 'gifs') else []
         return [format_gif(g) for g in gifs[:count]]
     except Exception as e:
         return [{"error": f"Trending failed: {str(e)}"}]
