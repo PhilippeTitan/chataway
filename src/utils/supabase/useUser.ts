@@ -2,25 +2,30 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
-import { createClient } from './client'
+import { createClient, isSupabaseConfigured } from './client'
 
 export function useUser() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
     let mounted = true
 
-    // Initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (mounted) {
         setUser(session?.user ?? null)
         setLoading(false)
       }
+    }).catch(() => {
+      if (mounted) setLoading(false)
     })
 
-    // Listen for auth changes (sign in, sign out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
         setUser(session?.user ?? null)
@@ -32,10 +37,14 @@ export function useUser() {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [])
 
   const signInAnonymously = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      return { data: null, error: new Error('Supabase not configured') }
+    }
     try {
+      const supabase = createClient()
       const { data, error } = await supabase.auth.signInAnonymously()
       if (error) {
         console.warn('Anonymous sign-in warning:', error.message)
@@ -46,17 +55,19 @@ export function useUser() {
       console.error('Anonymous sign-in failed:', err)
       return { data: null, error: err }
     }
-  }, [supabase])
+  }, [])
 
   const signOut = useCallback(async () => {
+    if (!isSupabaseConfigured()) return
     try {
+      const supabase = createClient()
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       setUser(null)
     } catch (err) {
       console.error('Sign-out failed:', err)
     }
-  }, [supabase])
+  }, [])
 
   return {
     user,
