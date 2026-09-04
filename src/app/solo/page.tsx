@@ -188,15 +188,52 @@ export default function Solo() {
     }
   }, [contentMode, searchClips, searchVideos])
 
-  const handleNicheSelect = useCallback((nicheId: string | null) => {
+  const handleNicheSelect = useCallback(async (nicheId: string | null) => {
     setSelectedNiche(nicheId)
+    setSearchQuery('')
     setContentMode('clips')
     if (nicheId) {
-      searchClips(nicheId, 'niche')
-    } else {
-      searchClips('trending', 'trending')
+      // Fetch clips then open TikTok player directly
+      const cacheKey = `niche_${nicheId}`
+      let clipsToPlay = clipCache.get(cacheKey)
+
+      if (!clipsToPlay) {
+        setLoading(true)
+        try {
+          const params = new URLSearchParams({ q: nicheId, action: 'niche', count: '30', page: '1' })
+          const res = await fetch(`/api/search-redgifs?${params.toString()}`)
+          const data = await res.json()
+          if (Array.isArray(data)) {
+            clipsToPlay = data.filter((c: Record<string, unknown>) => !c.error).map((c: Record<string, unknown>) => ({
+              clipId: String(c.clipId || ''),
+              title: String(c.title || ''),
+              username: String(c.username || ''),
+              thumbnail: c.thumbnail as string | null,
+              hdUrl: c.hdUrl as string | null,
+              sdUrl: c.sdUrl as string | null,
+              preview: c.preview as string | null,
+              duration: c.duration as number | null,
+              views: c.views as number | null,
+              likes: c.likes as number | null,
+              tags: (c.tags as string[]) || [],
+              verified: Boolean(c.verified),
+              site: 'redgifs',
+              hash: String(c.hash || ''),
+            }))
+            clipCache.set(cacheKey, clipsToPlay)
+          }
+        } catch (err) {
+          console.error('Niche fetch failed:', err)
+        }
+        setLoading(false)
+      }
+
+      if (clipsToPlay && clipsToPlay.length > 0) {
+        setClips(clipsToPlay)
+        setSelectedClipIndex(0)
+      }
     }
-  }, [searchClips])
+  }, [])
 
   const loadMore = useCallback(() => {
     const currentSearch = lastSearch.current
@@ -277,8 +314,9 @@ export default function Solo() {
   const toggleContentMode = useCallback(() => {
     setContentMode(prev => {
       const next = prev === 'videos' ? 'clips' : 'videos'
-      if (next === 'clips' && clips.length === 0) {
-        searchClips('trending', 'trending')
+      if (next === 'clips') {
+        setSelectedNiche(null)
+        setSearchQuery('')
       }
       if (next === 'videos' && videos.length === 0) {
         searchVideos('trending', { sortBy: 'relevance', site: 'all' })
@@ -289,9 +327,6 @@ export default function Solo() {
 
   useEffect(() => {
     if (!searched) {
-      if (contentMode === 'clips' && clips.length === 0) {
-        searchClips('trending', 'trending')
-      }
       if (contentMode === 'videos' && videos.length === 0) {
         searchVideos('trending', { sortBy: 'relevance', site: 'all' })
       }
@@ -317,6 +352,7 @@ export default function Solo() {
         clips={clips}
         startIndex={selectedClipIndex}
         onClose={() => setSelectedClipIndex(null)}
+        nicheName={selectedNiche}
       />
     )
   }
@@ -385,7 +421,7 @@ export default function Solo() {
             />
 
             {/* Niches bar (only in clips mode) */}
-            {contentMode === 'clips' && (
+            {contentMode === 'clips' && !selectedNiche && !searchQuery.trim() && (
               <div className="mt-4">
                 <NichesBar selectedNiche={selectedNiche} onSelect={handleNicheSelect} />
               </div>
@@ -403,7 +439,7 @@ export default function Solo() {
           )}
 
           {/* Loading skeleton */}
-          {loading && videos.length === 0 && clips.length === 0 && (
+          {loading && videos.length === 0 && clips.length === 0 && (contentMode === 'videos' || selectedNiche || searchQuery.trim()) && (
             contentMode === 'clips' ? (
               <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 stagger-children">
                 {[...Array(10)].map((_, i) => (
@@ -434,18 +470,16 @@ export default function Solo() {
           )}
 
           {/* Empty State */}
-          {!searched && !loading && (
+          {!searched && !loading && contentMode === 'videos' && (
             <div className="text-center py-20 text-gray-500">
               <SearchIcon className="w-16 h-16 mx-auto mb-4 text-gray-600" />
               <p className="text-lg">Start typing to search</p>
-              <p className="text-sm mt-2">
-                {contentMode === 'clips' ? 'Clips from RedGifs' : 'Videos from XVideos'}
-              </p>
+              <p className="text-sm mt-2">Videos from XVideos</p>
             </div>
           )}
 
           {/* No Results */}
-          {searched && !loading && videos.length === 0 && clips.length === 0 && (
+          {searched && !loading && videos.length === 0 && clips.length === 0 && (contentMode === 'videos' || selectedNiche || searchQuery.trim()) && (
             <div className="text-center py-20 text-gray-500">
               <p className="text-lg">No new content found</p>
               <p className="text-sm mt-2">Try a different search term</p>
@@ -453,7 +487,7 @@ export default function Solo() {
           )}
 
           {/* Clips Masonry Grid */}
-          {contentMode === 'clips' && clips.length > 0 && (
+          {contentMode === 'clips' && (selectedNiche || searchQuery.trim()) && clips.length > 0 && (
             <MasonryGrid clips={clips} onClipClick={handleClipClick} />
           )}
 

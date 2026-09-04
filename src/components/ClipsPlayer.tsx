@@ -8,6 +8,7 @@ interface ClipsPlayerProps {
   clips: Clip[]
   startIndex: number
   onClose: () => void
+  nicheName?: string | null
 }
 
 function formatCount(n: number | null): string {
@@ -24,7 +25,7 @@ function formatDuration(seconds: number | null): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export default function ClipsPlayer({ clips, startIndex, onClose }: ClipsPlayerProps) {
+export default function ClipsPlayer({ clips, startIndex, onClose, nicheName }: ClipsPlayerProps) {
   const [currentIndex, setCurrentIndex] = useState(startIndex)
   const [playing, setPlaying] = useState(true)
   const [muted, setMuted] = useState(false)
@@ -99,21 +100,17 @@ export default function ClipsPlayer({ clips, startIndex, onClose }: ClipsPlayerP
       {/* Top bar */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
         <div className="flex items-center gap-3">
-          {/* User avatar */}
-          <div className="w-9 h-9 rounded-full bg-[#2a1f16] border border-amber-900/40 flex items-center justify-center">
-            <span className="text-xs font-bold text-amber-400/80 uppercase">
-              {clip.username ? clip.username.slice(0, 2) : '??'}
-            </span>
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold text-white">{clip.username || 'Unknown'}</span>
-              {clip.verified && <BadgeCheckIcon className="w-3.5 h-3.5 text-amber-400" />}
-            </div>
-            {clip.title && (
-              <p className="text-[11px] text-white/60 line-clamp-1 max-w-[200px]">{clip.title}</p>
-            )}
-          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition cursor-pointer"
+          >
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          {nicheName && (
+            <span className="text-sm font-semibold text-white/90">{nicheName}</span>
+          )}
         </div>
 
         <button
