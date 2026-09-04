@@ -13,7 +13,6 @@ interface VideoWithPreview extends Record<string, unknown> {
   title: string
   duration?: string
   views?: string
-  previewThumbs?: string[]
 }
 
 export default function Watch() {
@@ -29,8 +28,8 @@ export default function Watch() {
   const [input, setInput] = useState('')
   const [searched, setSearched] = useState(false)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const [previewFrame, setPreviewFrame] = useState(0)
-  const previewInterval = useRef<NodeJS.Timeout | null>(null)
+  const [previewReady, setPreviewReady] = useState<number | null>(null)
+  const hoverTimer = useRef<NodeJS.Timeout | null>(null)
 
   const searchVideos = useCallback(async (query: string) => {
     if (!query.trim()) return
@@ -51,7 +50,6 @@ export default function Watch() {
         videoId: String(v.videoId || ''),
         thumbnail: String(v.thumbnail || ''),
         title: String(v.title || 'Untitled'),
-        previewThumbs: generatePreviewThumbs(String(v.thumbnail || ''))
       }))
       videoCache.set(query, results)
       setVideos(results)
@@ -61,31 +59,28 @@ export default function Watch() {
     setLoading(false)
   }, [])
 
-  const generatePreviewThumbs = (thumbUrl: string): string[] => {
-    if (!thumbUrl) return []
-    const thumbs = []
-    for (let i = 1; i <= 8; i++) {
-      thumbs.push(thumbUrl.replace(/\d+\.jpg/, `${i}.jpg`))
+  const handleMouseEnter = useCallback((index: number) => {
+    setHoveredIndex(index)
+    setPreviewReady(null)
+    hoverTimer.current = setTimeout(() => {
+      setPreviewReady(index)
+    }, 400)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    setHoveredIndex(null)
+    setPreviewReady(null)
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current)
+      hoverTimer.current = null
     }
-    return thumbs
-  }
+  }, [])
 
   useEffect(() => {
-    if (hoveredIndex !== null) {
-      setPreviewFrame(0)
-      previewInterval.current = setInterval(() => {
-        setPreviewFrame(prev => (prev + 1) % 8)
-      }, 150)
-    } else {
-      if (previewInterval.current) {
-        clearInterval(previewInterval.current)
-        previewInterval.current = null
-      }
-    }
     return () => {
-      if (previewInterval.current) clearInterval(previewInterval.current)
+      if (hoverTimer.current) clearTimeout(hoverTimer.current)
     }
-  }, [hoveredIndex])
+  }, [])
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
@@ -101,13 +96,6 @@ export default function Watch() {
     if (!input.trim()) return
     setMessages(prev => [...prev, { sender: 'me', text: input }])
     setInput('')
-  }
-
-  const getPreviewThumb = (video: VideoWithPreview, frame: number): string => {
-    if (video.previewThumbs && video.previewThumbs[frame]) {
-      return video.previewThumbs[frame]
-    }
-    return video.thumbnail
   }
 
   return (
@@ -169,55 +157,52 @@ export default function Watch() {
               </div>
             )}
 
-            {/* Video Grid with Hover Preview */}
+            {/* Video Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               {videos.map((video, i) => (
                 <div 
                   key={i} 
                   onClick={() => selectVideo(video)}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
+                  onMouseEnter={() => handleMouseEnter(i)}
+                  onMouseLeave={handleMouseLeave}
                   className="bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all duration-200 cursor-pointer group"
                 >
                   <div className="aspect-video bg-gray-800 relative overflow-hidden">
                     {video.thumbnail ? (
                       <>
                         <img 
-                          src={hoveredIndex === i ? getPreviewThumb(video, previewFrame) : video.thumbnail}
+                          src={video.thumbnail}
                           alt="" 
-                          className={`w-full h-full object-cover transition-all duration-200 ${
-                            hoveredIndex === i ? 'scale-110 brightness-110' : 'group-hover:scale-105'
+                          className={`w-full h-full object-cover transition-all duration-300 ${
+                            hoveredIndex === i ? 'scale-110 opacity-0' : 'scale-100 opacity-100'
                           }`}
                           loading="lazy"
                         />
+
+                        {previewReady === i && (
+                          <iframe
+                            src={`https://www.pornhub.com/embed/${video.videoId}?autoplay=1`}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            allow="autoplay; encrypted-media"
+                            frameBorder={0}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        )}
                         
-                        <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300 ${
+                        <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-300 ${
                           hoveredIndex === i ? 'opacity-100' : 'opacity-0'
                         }`}></div>
                         
                         <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
-                          hoveredIndex === i ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+                          hoveredIndex === i && previewReady !== i ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
                         }`}>
                           <div className="w-14 h-14 bg-purple-600/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg shadow-purple-500/30">
                             <PlayIcon className="w-7 h-7 text-white ml-1" />
                           </div>
                         </div>
 
-                        {hoveredIndex === i && (
-                          <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-                            {[...Array(8)].map((_, frame) => (
-                              <div 
-                                key={frame}
-                                className={`h-1 flex-1 rounded-full transition-all duration-150 ${
-                                  frame === previewFrame ? 'bg-purple-500' : 'bg-white/30'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        )}
-
                         {video.duration && (
-                          <div className="absolute top-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-medium">
+                          <div className="absolute top-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-medium z-10">
                             {String(video.duration)}
                           </div>
                         )}
