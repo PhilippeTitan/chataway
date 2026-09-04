@@ -86,8 +86,8 @@ export default function Watch() {
     setLoading(false)
   }, [])
 
-  const handleSearch = useCallback((query: string) => {
-    searchVideos(query)
+  const handleSearch = useCallback((query: string, filters: SearchFilters) => {
+    searchVideos(query, filters)
   }, [searchVideos])
 
   const handleVideoClick = useCallback(async (video: Video) => {
