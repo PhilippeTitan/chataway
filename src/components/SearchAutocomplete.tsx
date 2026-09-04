@@ -294,7 +294,7 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
       )}
 
       {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1c130d] rounded-xl border border-amber-900/35 shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1c130d] rounded-xl border border-amber-900/35 shadow-2xl overflow-hidden z-50 max-h-52 overflow-y-auto">
           {/* Recent Searches */}
           {history.length > 0 && !query && (
             <div className="p-2 border-b border-gray-800">
@@ -327,14 +327,14 @@ export default function SearchAutocomplete({ onSearch, placeholder = 'Search vid
             </div>
           )}
 
-          {/* Literal query autocomplete */}
+          {/* Curated query autocomplete */}
           <div className="p-2">
             <div className="px-4 py-1.5">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Search this query
+                Autocomplete
               </span>
             </div>
-            {suggestions.slice(0, 1).map((s, i) => {
+            {suggestions.slice(0, 30).map((s, i) => {
               const idx = i
               return (
                 <button

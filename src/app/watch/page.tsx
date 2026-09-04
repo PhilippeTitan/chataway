@@ -2,12 +2,11 @@
 
 import { Suspense, useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CloseIcon, ChatIcon, VideoIcon, SearchIcon } from '@/components/icons'
+import { CloseIcon, ChatIcon, VideoIcon, SearchIcon, BoltIcon, SendIcon } from '@/components/icons'
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
 import VideoCard from '@/components/VideoCard'
 import VideoPlayer from '@/components/VideoPlayer'
 import ControlMode from '@/components/ControlMode'
-import { BoltIcon, SendIcon } from '@/components/icons'
 import { filterSeen, markSeen } from '@/utils/dedup'
 import { createClient, isSupabaseConfigured } from '@/utils/supabase/client'
 import { useUser } from '@/utils/supabase/useUser'
@@ -59,13 +58,6 @@ function WatchContent() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [controlOwner, setControlOwner] = useState<'you' | 'them'>('you')
-  const [controlRequestPending, setControlRequestPending] = useState(false)
-  const [incomingControlRequest, setIncomingControlRequest] = useState(false)
-  const [relationshipNote, setRelationshipNote] = useState('You are sharing control')
-  const [guidedMode, setGuidedMode] = useState(false)
-  const [participantChoice, setParticipantChoice] = useState('')
-  const [incomingSuggestion, setIncomingSuggestion] = useState('')
-  const [suggestionState, setSuggestionState] = useState<'idle' | 'sent' | 'accepted' | 'declined'>('idle')
   const [partnerOnline, setPartnerOnline] = useState(true)
   const [controlModeActive, setControlModeActive] = useState(false)
   const [fullAuto, setFullAuto] = useState(false)
@@ -90,47 +82,8 @@ function WatchContent() {
     const channel = createClient().channel(`watch:${matchId}`)
     channelRef.current = channel
     channel
-      .on('broadcast', { event: 'control_offer' }, ({ payload }) => {
-        if (payload.senderId !== user?.id) setIncomingControlRequest(true)
-      })
-      .on('broadcast', { event: 'control_granted' }, ({ payload }) => {
-        if (payload.senderId !== user?.id) {
-          setControlRequestPending(false)
-          setControlOwner('them')
-          setRelationshipNote('They accepted your offer')
-          addPartnerMessage('I will guide this part.')
-        }
-      })
-      .on('broadcast', { event: 'control_reclaimed' }, ({ payload }) => {
-        if (payload.senderId !== user?.id) {
-          setControlOwner('you')
-          setRelationshipNote('You are sharing control')
-          addPartnerMessage('Control is back with you.')
-        }
-      })
       .on('broadcast', { event: 'reaction' }, ({ payload }) => {
         if (payload.senderId !== user?.id && payload.text) addPartnerMessage(payload.text)
-      })
-      .on('broadcast', { event: 'guided_mode' }, ({ payload }) => {
-        if (payload.senderId !== user?.id) setGuidedMode(payload.enabled === 'true')
-      })
-      .on('broadcast', { event: 'participant_choice' }, ({ payload }) => {
-        if (payload.senderId !== user?.id && payload.choice) {
-          setParticipantChoice(payload.choice)
-          addPartnerMessage(`My choice: ${payload.choice}`)
-        }
-      })
-      .on('broadcast', { event: 'suggestion' }, ({ payload }) => {
-        if (payload.senderId !== user?.id && payload.text) {
-          setIncomingSuggestion(payload.text)
-          setSuggestionState('idle')
-        }
-      })
-      .on('broadcast', { event: 'suggestion_response' }, ({ payload }) => {
-        if (payload.senderId !== user?.id && payload.response) {
-          setSuggestionState(payload.response === 'accepted' ? 'accepted' : 'declined')
-          addPartnerMessage(payload.response === 'accepted' ? 'Suggestion accepted.' : 'Suggestion declined.')
-        }
       })
       .on('broadcast', { event: 'video_proposal' }, ({ payload }) => {
         if (payload.senderId !== user?.id && payload.video) {
@@ -242,30 +195,6 @@ function WatchContent() {
     if (isBot) window.setTimeout(() => addPartnerMessage(text), delay)
   }
 
-  const requestControl = () => {
-    setControlRequestPending(true)
-    setMessages(prev => [...prev, { sender: 'me', text: 'Can I take the controls for a moment?' }])
-    if (channelRef.current) void channelRef.current.send({ type: 'broadcast', event: 'control_offer', payload: { senderId: user?.id || 'guest' } })
-    else {
-      setControlRequestPending(false)
-      setControlOwner('them')
-      botReply('Sure, you can guide this part.')
-    }
-  }
-
-  const reclaimControl = () => {
-    setControlOwner('you')
-    addPartnerMessage('Control is back with you.')
-    if (channelRef.current) void channelRef.current.send({ type: 'broadcast', event: 'control_reclaimed', payload: { senderId: user?.id || 'guest' } })
-    botReply('Control is back with you.')
-  }
-
-  const sendReaction = (reaction: string) => {
-    setMessages(prev => [...prev, { sender: 'me', text: reaction }])
-    if (channelRef.current) void channelRef.current.send({ type: 'broadcast', event: 'reaction', payload: { senderId: user?.id || 'guest', text: reaction } })
-    botReply(`I saw your reaction: ${reaction}.`)
-  }
-
   const respondToVideoProposal = (response: 'accepted' | 'declined') => {
     if (!incomingVideoProposal) return
     if (response === 'accepted') {
@@ -347,84 +276,6 @@ function WatchContent() {
       loadingApprovedVideoRef.current = null
       setExtracting(false)
     }
-  }
-
-  const toggleGuidedMode = () => {
-    const enabled = !guidedMode
-    setGuidedMode(enabled)
-    setRelationshipNote(enabled ? 'Guided session is active' : 'You are sharing control')
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'guided_mode',
-        payload: { senderId: user?.id || 'guest', enabled: String(enabled) },
-      })
-    } else if (isBot && enabled) {
-      botReply('I am ready for a guided session.')
-    }
-  }
-
-  const chooseParticipantAction = (choice: string) => {
-    setParticipantChoice(choice)
-    addPartnerMessage(`My choice: ${choice}`)
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'participant_choice',
-        payload: { senderId: user?.id || 'guest', choice },
-      })
-    } else if (isBot) {
-      botReply(`Got it. We’ll ${choice.toLowerCase()}.`)
-    }
-  }
-
-  const sendSuggestion = (suggestion: string) => {
-    setSuggestionState('sent')
-    addPartnerMessage(`Suggestion sent: ${suggestion}`)
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'suggestion',
-        payload: { senderId: user?.id || 'guest', text: suggestion },
-      })
-    } else if (isBot) {
-      window.setTimeout(() => {
-        setSuggestionState('accepted')
-        addPartnerMessage('Suggestion accepted. That sounds good.')
-      }, 700)
-    }
-  }
-
-  const respondToSuggestion = (response: 'accepted' | 'declined') => {
-    setSuggestionState(response)
-    setIncomingSuggestion('')
-    addPartnerMessage(response === 'accepted' ? 'Suggestion accepted.' : 'Suggestion declined.')
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'suggestion_response',
-        payload: { senderId: user?.id || 'guest', response },
-      })
-    }
-  }
-
-  const acceptControl = () => {
-    setIncomingControlRequest(false)
-    setControlOwner('you')
-    setRelationshipNote('You accepted their offer')
-    addPartnerMessage('You are guiding this part.')
-    if (channelRef.current) {
-      void channelRef.current.send({
-        type: 'broadcast',
-        event: 'control_granted',
-        payload: { senderId: user?.id || 'guest' },
-      })
-    }
-  }
-
-  const declineControl = () => {
-    setIncomingControlRequest(false)
-    addPartnerMessage('They kept control for now.')
   }
 
   // Control mode functions
@@ -686,7 +537,7 @@ function WatchContent() {
   }
 
   const videoValidator = validationVideo && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 safe-top safe-bottom backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-purple-500/40 bg-gray-950 p-5 shadow-2xl shadow-purple-950/30">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
@@ -723,10 +574,10 @@ function WatchContent() {
   // If video is selected, show player
   if (selectedVideo) {
     return (
-      <div className="h-screen bg-black text-white flex">
+      <div className="min-h-dvh bg-black text-white flex flex-col lg:flex-row overflow-hidden">
         {videoValidator}
         {/* Main Video Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 min-h-[48dvh] lg:min-h-0 flex flex-col min-w-0">
           <div className={`flex-1 min-h-0 ${secondVideo ? 'grid grid-rows-2 gap-px bg-gray-800' : ''}`}>
             {selectedVideo.streamUrl ? (
               <VideoPlayer
@@ -741,9 +592,19 @@ function WatchContent() {
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center bg-gray-950 text-gray-400">
-                <div className="mb-3 h-10 w-10 animate-spin rounded-full border-2 border-gray-700 border-t-purple-400" />
-                <p className="text-sm">Loading {selectedVideo.title}</p>
-                <p className="mt-1 text-xs text-gray-600">Your chat stays open while it loads</p>
+                <div className="relative mb-5 h-16 w-24">
+                  <div className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-purple-400/50" />
+                  <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-purple-400 shadow-[0_0_28px_rgba(192,132,252,0.8)]" />
+                  <div className="absolute bottom-1 left-1/2 flex -translate-x-1/2 items-end gap-1">
+                    <span className="h-2 w-1 animate-pulse rounded-full bg-blue-400" />
+                    <span className="h-4 w-1 animate-pulse rounded-full bg-purple-400 [animation-delay:120ms]" />
+                    <span className="h-3 w-1 animate-pulse rounded-full bg-pink-400 [animation-delay:240ms]" />
+                    <span className="h-5 w-1 animate-pulse rounded-full bg-purple-400 [animation-delay:360ms]" />
+                    <span className="h-2 w-1 animate-pulse rounded-full bg-blue-400 [animation-delay:480ms]" />
+                  </div>
+                </div>
+                <p className="text-sm">Preparing your shared watch</p>
+                <p className="mt-1 text-xs text-gray-600">The conversation stays open while it loads</p>
               </div>
             )}
             {secondVideo && (
@@ -760,8 +621,11 @@ function WatchContent() {
                 />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center bg-gray-950 text-gray-400">
-                  <div className="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-gray-700 border-t-purple-400" />
-                  <p className="text-sm">Loading second video</p>
+                  <div className="relative mb-4 h-12 w-20">
+                    <div className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-pink-400/50" />
+                    <div className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-pink-400 shadow-[0_0_22px_rgba(244,114,182,0.8)]" />
+                  </div>
+                  <p className="text-sm">Preparing the second view</p>
                 </div>
               )
             )}
@@ -770,7 +634,7 @@ function WatchContent() {
 
         {/* Side Panel */}
         {chatOpen && (
-          <div className="w-80 border-l border-gray-800 flex flex-col shrink-0">
+          <div className="w-full lg:w-80 max-h-[50dvh] lg:max-h-none min-h-0 border-t lg:border-t-0 lg:border-l border-gray-800 flex flex-col shrink-0">
             {controlModeActive ? (
               /* Control Mode */
               <ControlMode
@@ -816,19 +680,6 @@ function WatchContent() {
                   </div>
                 )}
 
-                {/* Enter Control Mode button */}
-                {selectedVideo && (
-                  <div className="p-3 border-b border-gray-800">
-                    <button
-                      onClick={activateControlMode}
-                      className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-sm font-semibold hover:from-purple-500 hover:to-pink-500 transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <BoltIcon className="w-5 h-5" />
-                      Enter Control Mode
-                    </button>
-                  </div>
-                )}
-
                 {/* Chat Header */}
                 <div className="p-3 border-b border-gray-800 flex justify-between items-center">
                   <span className="font-semibold text-sm flex items-center gap-2">
@@ -840,7 +691,7 @@ function WatchContent() {
                 </div>
 
                 {/* Chat Messages */}
-                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
                   {messages.map((msg, i) => (
                     <div key={i} className={`text-sm ${msg.sender === 'me' ? 'text-right' : ''}`}>
                       <span className={msg.sender === 'me' ? 'text-blue-400' : 'text-pink-400'}>
@@ -854,6 +705,16 @@ function WatchContent() {
                 {/* Chat Input */}
                 <div className="p-3 border-t border-gray-800">
                   <div className="flex gap-2">
+                    {selectedVideo && (
+                      <button
+                        onClick={activateControlMode}
+                        className="h-10 w-10 shrink-0 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-950/30 hover:from-purple-500 hover:to-pink-500 hover:scale-105 transition-all cursor-pointer flex items-center justify-center"
+                        title="Enter Control Mode"
+                        aria-label="Enter Control Mode"
+                      >
+                        <BoltIcon className="w-5 h-5" />
+                      </button>
+                    )}
                     <input
                       type="text"
                       value={input}
@@ -874,7 +735,7 @@ function WatchContent() {
         {!chatOpen && (
           <button 
             onClick={() => setChatOpen(true)}
-            className="fixed bottom-4 right-4 px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700 transition cursor-pointer flex items-center gap-2"
+            className="safe-bottom fixed bottom-4 right-4 px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700 transition cursor-pointer flex items-center gap-2"
           >
             <ChatIcon className="w-5 h-5" /> Open Chat
           </button>
@@ -884,10 +745,10 @@ function WatchContent() {
   }
 
   return (
-    <div className="h-screen bg-black text-white flex">
+    <div className="min-h-dvh bg-black text-white flex flex-col lg:flex-row overflow-hidden">
       {videoValidator}
       {/* Main Video Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 min-h-0 flex flex-col min-w-0">
         {/* Header */}
         <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
           <h2 className="text-xl font-bold flex items-center gap-2">
@@ -909,10 +770,10 @@ function WatchContent() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Extracting overlay */}
           {extracting && (
-            <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center">
+            <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-6 safe-top safe-bottom">
               <div className="text-center">
                 <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                 <p className="text-gray-300">Loading video...</p>
@@ -1019,7 +880,7 @@ function WatchContent() {
 
       {/* Side Chat */}
       {chatOpen && (
-        <div className="w-80 border-l border-gray-800 flex flex-col shrink-0">
+        <div className="w-full lg:w-80 max-h-[45dvh] lg:max-h-none min-h-0 border-t lg:border-t-0 lg:border-l border-gray-800 flex flex-col shrink-0">
           <div className="p-3 border-b border-gray-800 flex justify-between items-center">
             <span className="font-semibold text-sm flex items-center gap-2">
               <ChatIcon className="w-4 h-4" /> Live Chat
@@ -1029,7 +890,7 @@ function WatchContent() {
             </button>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
             {messages.map((msg, i) => (
               <div key={i} className={`text-sm ${msg.sender === 'me' ? 'text-right' : ''}`}>
                 <span className={msg.sender === 'me' ? 'text-blue-400' : 'text-pink-400'}>
@@ -1040,7 +901,7 @@ function WatchContent() {
             ))}
           </div>
           
-          <div className="p-3 border-t border-gray-800">
+          <div className="safe-bottom p-3 border-t border-gray-800">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -1063,7 +924,7 @@ function WatchContent() {
       {!chatOpen && (
         <button 
           onClick={() => setChatOpen(true)}
-          className="fixed bottom-4 right-4 px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700 transition cursor-pointer flex items-center gap-2"
+          className="safe-bottom fixed bottom-4 right-4 px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700 transition cursor-pointer flex items-center gap-2"
         >
           <ChatIcon className="w-5 h-5" /> Open Chat
         </button>
@@ -1074,7 +935,7 @@ function WatchContent() {
 
 export default function Watch() {
   return (
-    <Suspense fallback={<div className="h-screen bg-[#0e0a07]" />}>
+    <Suspense fallback={<div className="min-h-dvh bg-[#0e0a07]" />}>
       <WatchContent />
     </Suspense>
   )

@@ -37,7 +37,7 @@ export default function Landing() {
   }
 
   const renderTopBar = () => (
-    <header className="absolute top-0 left-0 right-0 p-6 md:px-12 flex justify-between items-center z-20">
+    <header className="safe-top absolute top-0 left-0 right-0 p-6 md:px-12 flex justify-between items-center z-20">
       <div className="flex items-center gap-3">
         <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-amber-500 to-orange-400 shadow-[0_0_12px_rgba(245,158,11,0.8)]" />
         <span className="font-serif italic text-lg tracking-wider text-[#f5ebe0]/90">
@@ -101,7 +101,7 @@ export default function Landing() {
   )
 
   return (
-    <div className="relative min-h-screen text-[#f5ebe0] flex flex-col items-center justify-center px-4 py-20 selection:bg-amber-800/40 selection:text-amber-200">
+    <div className="relative min-h-dvh text-[#f5ebe0] flex flex-col items-center justify-center px-4 py-20 safe-bottom selection:bg-amber-800/40 selection:text-amber-200">
       <SunsetBackdrop />
       {renderTopBar()}
 
@@ -199,7 +199,7 @@ export default function Landing() {
                 </p>
               </div>
 
-              <div className="space-y-3 mb-8 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+              <div className="space-y-3 mb-8 max-h-[300px] overflow-y-auto pr-2">
                 <div className="p-4 rounded-2xl bg-[#140d08]/70 border border-amber-900/25 flex items-start gap-3.5">
                   <div className="w-8 h-8 rounded-lg bg-amber-950/80 text-amber-400 flex items-center justify-center shrink-0 text-sm font-semibold">
                     1

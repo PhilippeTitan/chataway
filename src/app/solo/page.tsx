@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { PlayIcon, HomeIcon, SearchIcon } from '@/components/icons'
+import { PlayIcon, HomeIcon, SearchIcon, Spinner } from '@/components/icons'
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
 import VideoCard from '@/components/VideoCard'
 import VideoPlayer from '@/components/VideoPlayer'
@@ -188,7 +188,7 @@ export default function Solo() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0e0a07] text-[#f5ebe0]">
+    <div className="min-h-dvh bg-[#0e0a07] text-[#f5ebe0]">
       {/* Header */}
       <div className="p-4 border-b border-amber-900/30 bg-[#130c07]/80 backdrop-blur-md flex justify-between items-center">
         <h2 className="text-xl font-bold flex items-center gap-2">
@@ -223,23 +223,23 @@ export default function Solo() {
 
           {/* Extracting overlay */}
           {extracting && (
-            <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-gray-300">Loading video...</p>
+            <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center backdrop-blur-sm">
+              <div className="text-center animate-scale-in">
+                <Spinner className="w-10 h-10 text-purple-400 mx-auto mb-4" />
+                <p className="text-sm text-gray-300">Loading video...</p>
               </div>
             </div>
           )}
 
           {/* Loading skeleton */}
           {loading && videos.length === 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="bg-gray-900 rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-video bg-gray-800" />
+                <div key={i} className="bg-gray-900 rounded-lg overflow-hidden animate-slide-up">
+                  <div className="aspect-video bg-gray-800 animate-shimmer" />
                   <div className="p-3 space-y-2">
-                    <div className="h-4 bg-gray-800 rounded w-3/4" />
-                    <div className="h-3 bg-gray-800 rounded w-1/2" />
+                    <div className="h-4 bg-gray-800 rounded w-3/4 animate-shimmer" />
+                    <div className="h-3 bg-gray-800 rounded w-1/2 animate-shimmer" />
                   </div>
                 </div>
               ))}
@@ -265,19 +265,20 @@ export default function Solo() {
 
           {/* Video Grid */}
           {videos.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children">
               {videos.map((video) => (
-                <VideoCard
-                  key={`${video.hash || video.videoId}_${video.thumbnail || ''}`}
-                  videoId={video.videoId}
-                  title={video.title}
-                  thumbnail={video.thumbnail}
-                  preview={video.preview}
-                  duration={video.duration}
-                  views={video.views}
-                  site={video.site}
-                  onClick={() => handleVideoClick(video)}
-                />
+                <div key={`${video.hash || video.videoId}_${video.thumbnail || ''}`} className="animate-slide-up">
+                  <VideoCard
+                    videoId={video.videoId}
+                    title={video.title}
+                    thumbnail={video.thumbnail}
+                    preview={video.preview}
+                    duration={video.duration}
+                    views={video.views}
+                    site={video.site}
+                    onClick={() => handleVideoClick(video)}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -287,7 +288,7 @@ export default function Solo() {
               <button
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="px-6 py-3 bg-gray-800 rounded-lg text-sm font-semibold text-gray-200 hover:bg-gray-700 disabled:opacity-50 transition cursor-pointer"
+                className="px-6 py-3 bg-gray-800 rounded-lg text-sm font-semibold text-gray-200 hover:bg-gray-700 disabled:opacity-50 transition-all cursor-pointer btn-press"
               >
                 {loadingMore ? 'Loading...' : 'Load more'}
               </button>

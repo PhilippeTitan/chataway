@@ -86,7 +86,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen text-[#f5ebe0] flex flex-col items-center justify-center px-4 py-12 selection:bg-amber-800/40 selection:text-amber-200">
+    <div className="relative min-h-dvh text-[#f5ebe0] flex flex-col items-center justify-center px-4 py-12 safe-top safe-bottom selection:bg-amber-800/40 selection:text-amber-200">
       <SunsetBackdrop />
 
       {/* Header Back Button */}

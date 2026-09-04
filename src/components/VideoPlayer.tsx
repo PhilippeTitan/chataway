@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Hls from 'hls.js'
-import { PlayIcon, PauseIcon, VolumeIcon, BackIcon, FullscreenIcon } from '@/components/icons'
+import { PlayIcon, PauseIcon, VolumeIcon, BackIcon } from '@/components/icons'
 
 interface VideoPlayerProps {
   streamUrl: string
@@ -23,7 +23,6 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
   const [currentTime, setCurrentTime] = useState('0:00')
   const [volume, setVolume] = useState(80)
   const [showControls, setShowControls] = useState(true)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [selectedQuality, setSelectedQuality] = useState<string>('default')
   const [showQualityMenu, setShowQualityMenu] = useState(false)
   const controlsTimer = useRef<NodeJS.Timeout | null>(null)
@@ -76,15 +75,6 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
     }
   }, [proxyUrl, streamUrl])
 
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement === videoRef.current)
-    }
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  }, [])
-
   const togglePlay = useCallback(() => {
     if (!canControl) return
     const video = videoRef.current
@@ -112,17 +102,6 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
     video.currentTime = percentage * video.duration
   }, [canControl])
 
-  const toggleFullscreen = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    if (document.fullscreenElement) {
-      void document.exitFullscreen()
-    } else {
-      void video.requestFullscreen()
-    }
-  }, [])
-
   const handleMouseMove = useCallback(() => {
     setShowControls(true)
     if (controlsTimer.current) {
@@ -135,6 +114,11 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
     }, 3000)
   }, [isPlaying])
 
+  const handleVideoClick = useCallback(() => {
+    setShowControls(true)
+    togglePlay()
+  }, [togglePlay])
+
   useEffect(() => {
     return () => {
       if (controlsTimer.current) {
@@ -146,62 +130,68 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
   return (
     <div
       ref={containerRef}
-      className={`${mode === 'together' ? 'relative w-full h-full min-h-0' : 'fixed inset-0 z-50'} bg-black flex flex-col`}
+      className={`${mode === 'together' ? 'relative w-full h-full min-h-0' : 'fixed inset-0 z-50 min-h-dvh'} bg-black flex flex-col`}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
       {/* Back button */}
       <button
         onClick={onBack}
-        className={`absolute top-4 left-4 z-50 px-4 py-2 bg-black/50 backdrop-blur-sm rounded-lg hover:bg-black/70 transition cursor-pointer flex items-center gap-2 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute top-[calc(1rem+env(safe-area-inset-top))] left-4 z-50 px-4 py-2 bg-black/50 backdrop-blur-sm rounded-lg hover:bg-black/70 transition cursor-pointer flex items-center gap-2 ${showControls ? 'opacity-100' : 'opacity-0'}`}
       >
         <BackIcon className="w-5 h-5" /> Back
       </button>
 
       {/* Video */}
-      <div className={`flex-1 flex items-center justify-center ${canControl ? 'cursor-pointer' : 'cursor-default'}`} onClick={togglePlay}>
+      <div className={`flex-1 flex items-center justify-center ${canControl ? 'cursor-pointer' : 'cursor-default'}`} onClick={handleVideoClick}>
         <video
           ref={videoRef}
           src={proxyUrl}
           poster={thumbnail}
           className="w-full h-full max-w-full max-h-full object-contain cursor-pointer"
           playsInline
-          controls={isFullscreen}
+          controls={false}
         />
       </div>
 
       {/* Controls */}
-      <div className={`p-4 bg-gradient-to-t from-black via-black/50 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className={`pb-[calc(0.75rem+env(safe-area-inset-bottom))] px-3 pt-3 sm:px-4 sm:pt-4 bg-gradient-to-t from-black via-black/70 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      >
         <div className="max-w-4xl mx-auto">
+          {/* Title */}
+          <h3 className="text-white text-sm sm:text-base font-semibold truncate mb-2 drop-shadow-md">{title}</h3>
+
           {/* Progress bar */}
           <div
-            className={`w-full h-1.5 bg-gray-700 rounded-full mb-3 group ${canControl ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+            className={`w-full h-1 bg-gray-600/80 rounded-full mb-3 group ${canControl ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
             onClick={handleProgressClick}
           >
             <div
-              className="h-full bg-purple-500 rounded-full relative"
+              className="h-full bg-white rounded-full relative"
               style={{ width: `${progress}%` }}
             >
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </div>
 
           {/* Bottom controls */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               {/* Play/Pause */}
-                <button onClick={togglePlay} disabled={!canControl} className="text-white hover:text-purple-400 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" title={canControl ? 'Play or pause' : 'Control is with your partner'}>
-                {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
+                <button onClick={togglePlay} disabled={!canControl} className="text-white hover:text-purple-300 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" title={canControl ? 'Play or pause' : 'Control is with your partner'}>
+                {isPlaying ? <PauseIcon className="w-5 h-5 sm:w-6 sm:h-6" /> : <PlayIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
               </button>
 
               {/* Time */}
-              <span className="text-sm text-gray-300">
+              <span className="text-xs sm:text-sm text-gray-300 tabular-nums">
                 {currentTime} / {duration || '--:--'}
               </span>
 
               {/* Volume */}
-              <div className="flex items-center gap-2">
-                <VolumeIcon className="w-5 h-5 text-gray-400" />
+              <div className="flex items-center gap-2 group/volume">
+                <VolumeIcon className="w-4 h-4 text-gray-400" />
                 <input
                   disabled={!canControl}
                   type="range"
@@ -215,18 +205,18 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
                       videoRef.current.volume = val / 100
                     }
                   }}
-                  className="w-20 cursor-pointer accent-purple-500"
+                  className="w-16 sm:w-20 cursor-pointer accent-white opacity-70 group-hover/volume:opacity-100"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               {/* Quality selector */}
               {formats && formats.length > 0 && (
                 <div className="relative">
                   <button
                     onClick={() => setShowQualityMenu(!showQualityMenu)}
-                    className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-300 hover:bg-gray-700 cursor-pointer"
+                    className="px-2 py-1 bg-white/10 rounded text-[10px] text-gray-300 hover:bg-white/20 cursor-pointer"
                   >
                     {selectedQuality === 'default' ? '360p' : selectedQuality}
                   </button>
@@ -259,15 +249,9 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
                 </div>
               )}
 
-              {/* Fullscreen */}
-              <button onClick={toggleFullscreen} className="text-white hover:text-purple-400 transition cursor-pointer">
-                <FullscreenIcon className="w-5 h-5" />
-              </button>
             </div>
           </div>
 
-          {/* Title */}
-          <h3 className="text-white font-semibold mt-2 truncate">{title}</h3>
         </div>
       </div>
     </div>

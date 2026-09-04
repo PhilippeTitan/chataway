@@ -10,17 +10,29 @@ const AUTOCOMPLETE_INTENTS: AutocompleteIntent[] = [
   {
     term: 'ebony',
     aliases: ['ebondy'],
-    completions: ['squirting', 'compilation', 'solo', 'pov'],
+    completions: [
+      'squirting', 'compilation', 'solo', 'pov', 'homemade', 'interracial',
+      'amateur', 'anal', 'oral', 'creampie', 'milf', 'mature', 'lesbian',
+      'threesome', 'public', 'roleplay', 'cosplay', 'deepthroat', 'rough', 'romantic',
+    ],
   },
   {
     term: 'squirting',
     aliases: ['squrting', 'squirtting', 'squi', 'sq'],
-    completions: ['compilation', 'solo', 'pov', 'homemade'],
+    completions: [
+      'compilation', 'solo', 'pov', 'homemade', 'amateur', 'squirt show',
+      'multiple orgasms', 'first time', 'public', 'facial', 'creampie', 'milf',
+      'mature', 'interracial', 'lesbian', 'threesome', 'orgasm', 'close up', 'cumshot',
+    ],
   },
   {
     term: 'latina',
     aliases: ['lati', 'latin'],
-    completions: ['compilation', 'fucked', 'solo', 'pov'],
+    completions: [
+      'compilation', 'fucked', 'solo', 'pov', 'homemade', 'amateur', 'milf',
+      'mature', 'interracial', 'lesbian', 'threesome', 'anal', 'oral', 'public',
+      'creampie', 'deepthroat', 'rough', 'romantic', 'first time',
+    ],
   },
 ]
 
@@ -38,11 +50,12 @@ function getIntentCompletions(query: string): string[] {
   if (intentIndex < 0) return []
 
   const intent = findIntent(terms[intentIndex])!
-  const correctedTerms = [...terms]
-  correctedTerms[intentIndex] = intent.term
+  const correctedTerms = terms.map(term => findIntent(term)?.term || term)
   const corrected = correctedTerms.join(' ')
 
-  return [corrected, ...intent.completions.map(completion => `${corrected} ${completion}`)]
+  return [corrected, ...intent.completions
+    .filter(completion => !correctedTerms.includes(completion))
+    .map(completion => `${corrected} ${completion}`)]
 }
 
 export async function GET(request: Request) {
@@ -56,7 +69,7 @@ export async function GET(request: Request) {
       const completions = getIntentCompletions(q)
       suggestions = [q, ...completions]
         .filter((text, index, all) => all.indexOf(text) === index)
-        .slice(0, 8)
+        .slice(0, 30)
         .map((text, index) => ({ text, type: index === 0 ? 'query' : 'completion' }))
     } else {
       // Trending/default suggestions
