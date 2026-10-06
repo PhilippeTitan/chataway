@@ -180,7 +180,7 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 sm:gap-4">
               {/* Play/Pause */}
-                <button onClick={togglePlay} disabled={!canControl} className="text-white hover:text-purple-300 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" title={canControl ? 'Play or pause' : 'Control is with your partner'}>
+                <button onClick={togglePlay} disabled={!canControl} className="text-white hover:text-amber-400 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" title={canControl ? 'Play or pause' : 'Control is with your partner'}>
                 {isPlaying ? <PauseIcon className="w-5 h-5 sm:w-6 sm:h-6" /> : <PlayIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
               </button>
 
@@ -189,11 +189,10 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
                 {currentTime} / {duration || '--:--'}
               </span>
 
-              {/* Volume */}
+              {/* Volume (100% locally independent per Q018) */}
               <div className="flex items-center gap-2 group/volume">
-                <VolumeIcon className="w-4 h-4 text-gray-400" />
+                <VolumeIcon className="w-4 h-4 text-amber-400/80" />
                 <input
-                  disabled={!canControl}
                   type="range"
                   min="0"
                   max="100"
@@ -205,7 +204,8 @@ export default function VideoPlayer({ streamUrl, thumbnail, title, duration, onB
                       videoRef.current.volume = val / 100
                     }
                   }}
-                  className="w-16 sm:w-20 cursor-pointer accent-white opacity-70 group-hover/volume:opacity-100"
+                  className="w-16 sm:w-20 cursor-pointer accent-amber-500 opacity-80 hover:opacity-100 transition"
+                  title="Local volume (independent)"
                 />
               </div>
             </div>

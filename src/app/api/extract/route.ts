@@ -23,6 +23,12 @@ function setCachedUrl(hash: string, url: string): void {
 }
 
 export async function GET(request: NextRequest) {
+  // Reject cross-site hotlinking ([Q190])
+  const secFetchSite = request.headers.get('sec-fetch-site')
+  if (secFetchSite === 'cross-site') {
+    return NextResponse.json({ error: 'Cross-site requests prohibited' }, { status: 403 })
+  }
+
   const url = request.nextUrl.searchParams.get('url')
   const hash = request.nextUrl.searchParams.get('hash')
 

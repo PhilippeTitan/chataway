@@ -60,6 +60,9 @@ function WatchContent() {
   const [viewMode, setViewMode] = useState<'grid' | 'feed'>('grid')
   const [controlOwner, setControlOwner] = useState<'you' | 'them'>('you')
   const [partnerOnline, setPartnerOnline] = useState(true)
+  const [partnerReconnecting, setPartnerReconnecting] = useState(false)
+  const [reconnectCountdown, setReconnectCountdown] = useState(45)
+  const [partnerLost, setPartnerLost] = useState(false)
   const [controlModeActive, setControlModeActive] = useState(false)
   const [fullAuto, setFullAuto] = useState(false)
   const channelRef = useRef<{ send: (payload: { type: 'broadcast'; event: string; payload: Record<string, string> }) => Promise<unknown> } | null>(null)
@@ -178,6 +181,26 @@ function WatchContent() {
       .on('broadcast', { event: 'control_mode_toggle' }, ({ payload }) => {
         if (payload.senderId !== user?.id) {
           setControlModeActive(payload.active === 'true')
+        }
+      })
+      .on('broadcast', { event: 'role_switch_handover' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          setControlOwner('you')
+          addPartnerMessage('Your partner handed you the remote control.')
+        }
+      })
+      .on('broadcast', { event: 'partner_ping' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          setPartnerOnline(true)
+          setPartnerReconnecting(false)
+          setReconnectCountdown(45)
+        }
+      })
+      .on('broadcast', { event: 'partner_disconnect_warning' }, ({ payload }) => {
+        if (payload.senderId !== user?.id) {
+          setPartnerOnline(false)
+          setPartnerReconnecting(true)
+          setReconnectCountdown(45)
         }
       })
       .subscribe()
@@ -407,11 +430,57 @@ function WatchContent() {
     if (channelRef.current) {
       void channelRef.current.send({
         type: 'broadcast',
-        event: 'reaction',
-        payload: { senderId: user?.id || 'guest', text: 'Entering aftercare mode.' },
+        event: 'aftercare_start',
+        payload: { senderId: user?.id || 'guest' },
       })
     }
   }
+
+  // Voluntarily hand over playback remote authority ([Q003], [Q023])
+  const handOverRemote = () => {
+    setControlOwner('them')
+    if (channelRef.current) {
+      void channelRef.current.send({
+        type: 'broadcast',
+        event: 'role_switch_handover',
+        payload: { senderId: user?.id || 'guest' },
+      })
+    }
+    addPartnerMessage('You passed the remote control to your partner.')
+  }
+
+  // 45-Second Reconnect Grace Window Timer ([Q011])
+  useEffect(() => {
+    let timer: NodeJS.Timeout
+    if (partnerReconnecting && !partnerLost) {
+      timer = setInterval(() => {
+        setReconnectCountdown(prev => {
+          if (prev <= 1) {
+            setPartnerLost(true)
+            clearInterval(timer)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+    return () => clearInterval(timer)
+  }, [partnerReconnecting, partnerLost])
+
+  // Periodic heartbeat to confirm companion connection
+  useEffect(() => {
+    if (!matchId || isBot || !isSupabaseConfigured()) return
+    const pingInterval = setInterval(() => {
+      if (channelRef.current) {
+        void channelRef.current.send({
+          type: 'broadcast',
+          event: 'partner_ping',
+          payload: { senderId: user?.id || 'guest' }
+        })
+      }
+    }, 12000)
+    return () => clearInterval(pingInterval)
+  }, [matchId, isBot, user?.id])
 
   const searchVideos = useCallback(async (query: string, filters: SearchFilters, page = 1, append = false) => {
     if (!query.trim()) return
@@ -538,45 +607,87 @@ function WatchContent() {
   }
 
   const videoValidator = validationVideo && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 safe-top safe-bottom backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-purple-500/40 bg-gray-950 p-5 shadow-2xl shadow-purple-950/30">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 safe-top safe-bottom backdrop-blur-md">
+      <div className="w-full max-w-md rounded-3xl border border-amber-900/40 bg-[#1c130d] p-6 shadow-2xl shadow-black/90">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-purple-300">Shared watch validator</p>
-            <h2 className="mt-1 text-lg font-semibold text-white">Agree on this video</h2>
-            <p className="mt-1 text-xs text-gray-400">It will not load until you both approve.</p>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-amber-400/90 font-medium">Shared watch validator</p>
+            <h2 className="mt-1 text-lg font-serif font-light text-[#fef9f5]">Agree on this scene</h2>
+            <p className="mt-1 text-xs text-[#a89582]">Stream unlocks once both of you approve.</p>
           </div>
-          <button onClick={declineValidationVideo} className="text-gray-500 hover:text-white cursor-pointer" aria-label="Close validator">×</button>
+          <button onClick={declineValidationVideo} className="text-[#a89582] hover:text-white cursor-pointer text-lg" aria-label="Close validator">×</button>
         </div>
-        <div className="rounded-xl border border-gray-800 bg-gray-900/70 p-3 mb-5">
-          <p className="text-sm font-medium text-white line-clamp-2">{validationVideo.title}</p>
-          <p className="text-xs text-gray-500 mt-1">{validationVideo.site || 'Shared selection'}</p>
+        <div className="rounded-2xl border border-amber-900/30 bg-[#140d08]/80 p-4 mb-5">
+          <p className="text-sm font-medium text-[#f5ebe0] line-clamp-2">{validationVideo.title}</p>
+          <p className="text-xs text-amber-400/70 mt-1 font-serif italic">{validationVideo.site || 'Shared selection'}</p>
         </div>
         <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className={`rounded-lg border p-3 ${validationSelfApproved ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-gray-800 bg-gray-900/40'}`}>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500">You</p>
-            <p className="text-xs text-white mt-1">{validationSelfApproved ? 'Approved' : 'Waiting'}</p>
+          <div className={`rounded-xl border p-3.5 ${validationSelfApproved ? 'border-amber-500/50 bg-amber-950/40 text-amber-200' : 'border-amber-900/25 bg-[#140d08]/60 text-[#a89582]'}`}>
+            <p className="text-[10px] uppercase tracking-wider">You</p>
+            <p className="text-xs font-medium mt-1">{validationSelfApproved ? 'Approved' : 'Waiting...'}</p>
           </div>
-          <div className={`rounded-lg border p-3 ${validationPartnerApproved ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-gray-800 bg-gray-900/40'}`}>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500">Partner</p>
-            <p className="text-xs text-white mt-1">{validationPartnerApproved ? 'Approved' : 'Waiting'}</p>
+          <div className={`rounded-xl border p-3.5 ${validationPartnerApproved ? 'border-amber-500/50 bg-amber-950/40 text-amber-200' : 'border-amber-900/25 bg-[#140d08]/60 text-[#a89582]'}`}>
+            <p className="text-[10px] uppercase tracking-wider">Partner</p>
+            <p className="text-xs font-medium mt-1">{validationPartnerApproved ? 'Approved' : 'Waiting...'}</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button onClick={approveValidationVideo} disabled={validationSelfApproved} className="flex-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-xs font-semibold hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer">
-            {validationSelfApproved ? 'You approved' : 'Approve video'}
+        <div className="flex gap-2.5">
+          <button onClick={approveValidationVideo} disabled={validationSelfApproved} className="flex-1 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-2.5 text-xs font-semibold text-white hover:from-amber-500 hover:to-orange-500 disabled:cursor-not-allowed disabled:opacity-40 transition cursor-pointer shadow-md">
+            {validationSelfApproved ? 'You approved' : 'Approve Scene'}
           </button>
-          <button onClick={declineValidationVideo} className="rounded-lg border border-gray-700 px-4 py-2.5 text-xs text-gray-300 hover:border-red-400 hover:text-white transition cursor-pointer">Decline</button>
+          <button onClick={declineValidationVideo} className="rounded-xl border border-amber-900/40 bg-[#241a13] px-4 py-2.5 text-xs text-[#c7b5a3] hover:border-amber-700 hover:text-white transition cursor-pointer">Decline</button>
         </div>
       </div>
     </div>
   )
 
+  const reconnectGraceOverlay = (
+    <>
+      {/* 45-Second Reconnect Grace Window Alert ([Q011]) */}
+      {partnerReconnecting && !partnerLost && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#1c130d]/95 border border-amber-500/50 rounded-2xl px-5 py-3 shadow-2xl backdrop-blur-md flex items-center gap-3 animate-fade-in max-w-sm">
+          <div className="w-3 h-3 rounded-full bg-amber-400 animate-ping shrink-0" />
+          <div className="text-left">
+            <p className="text-xs font-semibold text-amber-200">Partner connection dropped</p>
+            <p className="text-[11px] text-[#a89582]">Holding sanctuary room... ({reconnectCountdown}s remaining)</p>
+          </div>
+        </div>
+      )}
+
+      {/* Partner Lost Departure Modal */}
+      {partnerLost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+          <div className="max-w-md w-full rounded-3xl bg-[#1c130d] border border-amber-900/40 p-8 text-center shadow-2xl animate-scale-in">
+            <h3 className="text-xl font-serif text-[#fef9f5] mb-2 font-light">Partner has Departed</h3>
+            <p className="text-xs text-[#a89582] mb-6 leading-relaxed">
+              The 45-second reconnect grace window has ended. You can find a new companion or continue watching this video privately in Solo Lounge.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => router.push('/queue')}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 text-white font-medium rounded-xl text-xs hover:from-amber-500 transition cursor-pointer"
+              >
+                Find New Companion
+              </button>
+              <button
+                onClick={() => router.push('/solo')}
+                className="px-5 py-2.5 bg-[#261b14] border border-amber-900/40 text-[#d4c3b3] rounded-xl text-xs hover:bg-[#32231a] transition cursor-pointer"
+              >
+                Watch Solo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+
   // If video is selected, show player
   if (selectedVideo) {
     return (
-      <div className="min-h-dvh bg-black text-white grid grid-rows-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_20rem] md:grid-rows-1 overflow-hidden">
+      <div className="min-h-dvh bg-[#0e0a07] text-[#f5ebe0] grid grid-rows-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_20rem] md:grid-rows-1 overflow-hidden">
         {videoValidator}
+        {reconnectGraceOverlay}
         {/* Main Video Area */}
         <div className="min-h-[48dvh] md:min-h-0 min-w-0 flex flex-col">
           <div className={`flex-1 min-h-0 ${secondVideo ? 'grid grid-rows-2 gap-px bg-gray-800' : ''}`}>
@@ -682,34 +793,45 @@ function WatchContent() {
                 )}
 
                 {/* Chat Header */}
-                <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-                  <span className="font-semibold text-sm flex items-center gap-2">
-                    <ChatIcon className="w-4 h-4" /> {isBot ? 'Test Bot Chat' : 'Live Chat'}
-                  </span>
-                  <button onClick={() => setChatOpen(false)} className="text-gray-500 hover:text-white cursor-pointer">
+                <div className="p-3 border-b border-amber-900/35 flex justify-between items-center bg-[#130c07]/80">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm flex items-center gap-2 text-[#f5ebe0]">
+                      <ChatIcon className="w-4 h-4 text-amber-400" /> {isBot ? 'Companion Chat' : 'Live Sanctuary'}
+                    </span>
+                    {controlOwner === 'you' && (
+                      <button
+                        onClick={handOverRemote}
+                        className="ml-2 px-2.5 py-1 rounded-md bg-amber-950/60 border border-amber-800/40 text-[10px] text-amber-300 hover:bg-amber-900/60 hover:text-amber-100 transition cursor-pointer"
+                        title="Pass playback remote to your partner"
+                      >
+                        Pass Remote &rarr;
+                      </button>
+                    )}
+                  </div>
+                  <button onClick={() => setChatOpen(false)} className="text-[#a89582] hover:text-[#f5ebe0] cursor-pointer">
                     <CloseIcon className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Chat Messages */}
-                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3 bg-[#110a06]/40">
                   {messages.map((msg, i) => (
                     <div key={i} className={`text-sm ${msg.sender === 'me' ? 'text-right' : ''}`}>
-                      <span className={msg.sender === 'me' ? 'text-blue-400' : 'text-pink-400'}>
+                      <span className={msg.sender === 'me' ? 'text-amber-400' : 'text-orange-400'}>
                         {msg.sender === 'me' ? 'You' : 'Them'}:
                       </span>{' '}
-                      <span className="text-gray-300">{msg.text}</span>
+                      <span className="text-[#d4c3b3]">{msg.text}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* Chat Input */}
-                <div className="p-3 border-t border-gray-800">
+                <div className="p-3 border-t border-amber-900/35 bg-[#130c07]/80">
                   <div className="flex gap-2">
                     {selectedVideo && (
                       <button
                         onClick={activateControlMode}
-                        className="h-10 w-10 shrink-0 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-950/30 hover:from-purple-500 hover:to-pink-500 hover:scale-105 transition-all cursor-pointer flex items-center justify-center"
+                        className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-950/40 hover:from-amber-500 hover:to-orange-500 transition-all cursor-pointer flex items-center justify-center btn-press"
                         title="Enter Control Mode"
                         aria-label="Enter Control Mode"
                       >
@@ -721,10 +843,10 @@ function WatchContent() {
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                      placeholder="Chat..."
-                      className="flex-1 px-3 py-2 bg-gray-800 rounded text-sm text-white placeholder-gray-500 focus:outline-none"
+                      placeholder="Whisper..."
+                      className="flex-1 px-3 py-2 bg-[#1c130d] border border-amber-900/40 rounded-xl text-sm text-[#f5ebe0] placeholder-[#8c7867] focus:outline-none focus:border-amber-600"
                     />
-                    <button onClick={sendMessage} className="px-3 py-2 bg-blue-600 rounded text-sm cursor-pointer hover:bg-blue-700">
+                    <button onClick={sendMessage} className="px-3 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-sm cursor-pointer transition">
                       <SendIcon className="w-4 h-4" />
                     </button>
                   </div>
@@ -736,9 +858,10 @@ function WatchContent() {
         {!chatOpen && (
           <button 
             onClick={() => setChatOpen(true)}
-            className="safe-bottom fixed bottom-4 right-4 px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700 transition cursor-pointer flex items-center gap-2"
+            className="safe-bottom fixed bottom-4 right-4 px-4 py-2 bg-[#1c130d] border border-amber-900/40 text-amber-300 rounded-full hover:bg-[#251a13] shadow-lg transition cursor-pointer flex items-center gap-2"
           >
-            <ChatIcon className="w-5 h-5" /> Open Chat
+            <ChatIcon className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-medium">Open Chat</span>
           </button>
         )}
       </div>
@@ -746,25 +869,26 @@ function WatchContent() {
   }
 
   return (
-    <div className="min-h-dvh bg-black text-white grid grid-rows-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_20rem] md:grid-rows-1 overflow-hidden">
+    <div className="min-h-dvh bg-[#0e0a07] text-[#f5ebe0] grid grid-rows-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_20rem] md:grid-rows-1 overflow-hidden">
       {videoValidator}
+      {reconnectGraceOverlay}
       {/* Main Video Area */}
       <div className="min-h-0 min-w-0 flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <VideoIcon className="w-6 h-6 text-purple-500" /> Watch Together
+        <div className="p-4 border-b border-amber-900/30 bg-[#130c07]/85 backdrop-blur-md flex justify-between items-center shrink-0">
+          <h2 className="text-xl font-serif font-light flex items-center gap-2 text-[#fef9f5]">
+            <VideoIcon className="w-5 h-5 text-amber-400" /> Watch Together
           </h2>
           <div className="flex gap-2">
             <button 
               onClick={() => router.push(`/chat${matchId ? `?matchId=${encodeURIComponent(matchId)}&bot=${isBot ? '1' : '0'}` : ''}`)}
-              className="px-4 py-2 bg-gray-700 rounded-lg text-sm hover:bg-gray-600 transition cursor-pointer flex items-center gap-2"
+              className="px-4 py-2 bg-[#241a13] border border-amber-900/35 rounded-xl text-xs md:text-sm text-[#d4c3b3] hover:bg-[#32231a] transition cursor-pointer flex items-center gap-2"
             >
-              <ChatIcon className="w-4 h-4" /> Chat Only
+              <ChatIcon className="w-4 h-4 text-amber-400" /> Chat Only
             </button>
             <button 
               onClick={() => router.push('/end')}
-              className="px-4 py-2 bg-red-600 rounded-lg text-sm hover:bg-red-700 transition cursor-pointer flex items-center gap-2"
+              className="px-4 py-2 bg-[#4a2117] border border-orange-900/50 rounded-xl text-xs md:text-sm text-[#f5ebe0] hover:bg-[#64291a] transition cursor-pointer flex items-center gap-2"
             >
               <CloseIcon className="w-4 h-4" /> End
             </button>
@@ -774,10 +898,14 @@ function WatchContent() {
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Extracting overlay */}
           {extracting && (
-            <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-6 safe-top safe-bottom">
-              <div className="text-center">
-                <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-gray-300">Loading video...</p>
+            <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0e0a07]/85 p-6 backdrop-blur-md safe-top safe-bottom">
+              <div className="text-center bg-[#1c130d]/90 border border-amber-900/40 p-8 rounded-3xl shadow-2xl max-w-sm mx-auto">
+                <div className="relative w-12 h-12 mx-auto mb-4">
+                  <div className="absolute inset-0 rounded-full border-2 border-amber-900/30" />
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-amber-400 border-r-amber-500 animate-spin" />
+                </div>
+                <p className="text-base font-serif italic text-[#f5ebe0]">Connecting private stream...</p>
+                <p className="text-xs text-[#a89582] mt-1 font-light">Discreet & synchronized viewing</p>
               </div>
             </div>
           )}
@@ -792,9 +920,9 @@ function WatchContent() {
           </div>
 
           <div className="flex justify-end mb-6">
-            <div className="inline-flex rounded-lg border border-gray-800 bg-gray-950/80 p-1" aria-label="Browse mode">
-              <button onClick={() => setViewMode('grid')} className={`px-3 py-1.5 rounded-md text-xs transition cursor-pointer ${viewMode === 'grid' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}>Grid</button>
-              <button onClick={() => setViewMode('feed')} className={`px-3 py-1.5 rounded-md text-xs transition cursor-pointer ${viewMode === 'feed' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}>Feed</button>
+            <div className="inline-flex rounded-xl border border-amber-900/35 bg-[#1c130d]/80 p-1" aria-label="Browse mode">
+              <button onClick={() => setViewMode('grid')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${viewMode === 'grid' ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md' : 'text-[#a89582] hover:text-[#f5ebe0]'}`}>Grid</button>
+              <button onClick={() => setViewMode('feed')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${viewMode === 'feed' ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md' : 'text-[#a89582] hover:text-[#f5ebe0]'}`}>Feed</button>
             </div>
           </div>
 

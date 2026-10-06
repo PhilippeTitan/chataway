@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server'
 
 export async function GET(request: NextRequest) {
+  // Reject cross-site hotlinking ([Q190])
+  const secFetchSite = request.headers.get('sec-fetch-site')
+  if (secFetchSite === 'cross-site') {
+    return new Response('Cross-site requests prohibited', { status: 403 })
+  }
+
   const url = request.nextUrl.searchParams.get('url')
 
   if (!url) {
