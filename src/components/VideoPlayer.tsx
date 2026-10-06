@@ -51,44 +51,16 @@ export default function VideoPlayer({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Web Audio Peak Limiter & Equalizer Setup ([Q107])
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
+  // Track whether Web Audio has been connected to prevent double-connecting
+  const audioConnectedRef = useRef(false)
 
-    let audioCtx: AudioContext | null = null
-    try {
-      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      audioCtx = new AudioContextClass()
-      const source = audioCtx.createMediaElementSource(video)
-
-      // DynamicsCompressorNode clamps loud audio spikes (-24dB limit)
-      const compressor = audioCtx.createDynamicsCompressor()
-      compressor.threshold.setValueAtTime(-24, audioCtx.currentTime)
-      compressor.knee.setValueAtTime(30, audioCtx.currentTime)
-      compressor.ratio.setValueAtTime(12, audioCtx.currentTime)
-      compressor.attack.setValueAtTime(0.003, audioCtx.currentTime)
-      compressor.release.setValueAtTime(0.25, audioCtx.currentTime)
-
-      source.connect(compressor)
-      compressor.connect(audioCtx.destination)
-    } catch {
-      // Audio element source fallback if already connected or blocked
-    }
-
-    return () => {
-      if (audioCtx && audioCtx.state !== 'closed') {
-        void audioCtx.close()
-      }
-    }
-  }, [])
-
-  // Video Stream loading & HLS handling
+  // Video Stream loading, HLS handling & Web Audio Peak Limiter ([Q107])
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
     let hls: Hls | null = null
+    let audioCtx: AudioContext | null = null
     const isHls = streamUrl.includes('.m3u8')
 
     if (isHls && Hls.isSupported()) {
@@ -99,6 +71,28 @@ export default function VideoPlayer({
       hls.attachMedia(video)
     } else {
       video.src = proxyUrl
+    }
+
+    // Attach Web Audio peak limiter once source is assigned
+    if (!audioConnectedRef.current) {
+      try {
+        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        audioCtx = new AudioContextClass()
+        const source = audioCtx.createMediaElementSource(video)
+
+        const compressor = audioCtx.createDynamicsCompressor()
+        compressor.threshold.setValueAtTime(-24, audioCtx.currentTime)
+        compressor.knee.setValueAtTime(30, audioCtx.currentTime)
+        compressor.ratio.setValueAtTime(12, audioCtx.currentTime)
+        compressor.attack.setValueAtTime(0.003, audioCtx.currentTime)
+        compressor.release.setValueAtTime(0.25, audioCtx.currentTime)
+
+        source.connect(compressor)
+        compressor.connect(audioCtx.destination)
+        audioConnectedRef.current = true
+      } catch {
+        // Fallback if AudioContext is blocked or already connected
+      }
     }
 
     const handleTimeUpdate = () => {
@@ -123,6 +117,10 @@ export default function VideoPlayer({
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('ended', handleEnded)
+      if (audioCtx && audioCtx.state !== 'closed') {
+        void audioCtx.close()
+        audioConnectedRef.current = false
+      }
     }
   }, [proxyUrl, streamUrl])
 
@@ -249,7 +247,6 @@ export default function VideoPlayer({
       >
         <video
           ref={videoRef}
-          src={proxyUrl}
           poster={thumbnail}
           crossOrigin="anonymous"
           className="w-full h-full max-w-full max-h-full object-contain cursor-pointer transition-[filter] duration-150"
