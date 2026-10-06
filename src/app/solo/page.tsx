@@ -61,6 +61,7 @@ export default function SoloLounge() {
   const [hasMore, setHasMore] = useState(false)
   const [contentMode, setContentMode] = useState<'videos' | 'clips'>('videos')
   const [selectedNiche, setSelectedNiche] = useState<string | null>(null)
+  const [nicheLookupError, setNicheLookupError] = useState(false)
   const [isRollingDice, setIsRollingDice] = useState(false)
   const [showBackToTop, setShowBackToTop] = useState(false)
   const [vaultHashes, setVaultHashes] = useState<Set<string>>(new Set())
@@ -72,6 +73,7 @@ export default function SoloLounge() {
     action: 'search' | 'trending' | 'niche'
   } | null>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
+  const nicheRequestId = useRef(0)
 
   // Refresh Vault Hashes on Mount
   useEffect(() => {
@@ -295,51 +297,76 @@ export default function SoloLounge() {
 
   const handleNicheSelect = useCallback(
     async (nicheId: string | null) => {
+      const requestId = ++nicheRequestId.current
       setSelectedNiche(nicheId)
+      setNicheLookupError(false)
       setSearchQuery('')
       setActiveMashup(null)
       setContentMode('clips')
-      if (nicheId) {
-        const cacheKey = `niche_${nicheId}`
-        let clipsToPlay = clipCache.get(cacheKey)
+      setSelectedClipIndex(null)
+      setClips([])
+      setLoading(false)
+      setHasMore(false)
 
-        if (!clipsToPlay) {
-          setLoading(true)
-          try {
-            const params = new URLSearchParams({ q: nicheId, action: 'niche', count: '24', page: '1' })
-            const res = await fetch(`/api/search-redgifs?${params.toString()}`)
-            const data = await res.json()
-            if (Array.isArray(data)) {
-              clipsToPlay = data
-                .filter((c: Record<string, unknown>) => !c.error)
-                .map((c: Record<string, unknown>) => ({
-                  clipId: String(c.clipId || ''),
-                  title: String(c.title || ''),
-                  username: String(c.username || ''),
-                  thumbnail: c.thumbnail as string | null,
-                  hdUrl: c.hdUrl as string | null,
-                  sdUrl: c.sdUrl as string | null,
-                  preview: c.preview as string | null,
-                  duration: c.duration as number | null,
-                  views: c.views as number | null,
-                  likes: c.likes as number | null,
-                  tags: (c.tags as string[]) || [],
-                  verified: Boolean(c.verified),
-                  site: 'redgifs',
-                  hash: String(c.hash || ''),
-                }))
-              clipCache.set(cacheKey, clipsToPlay)
-            }
-          } catch (err) {
-            console.error('Niche fetch failed:', err)
-          }
-          setLoading(false)
-        }
+      if (!nicheId) {
+        lastSearch.current = null
+        setSearched(false)
+        return
+      }
 
-        if (clipsToPlay && clipsToPlay.length > 0) {
-          setClips(clipsToPlay)
-          setSelectedClipIndex(0)
+      setSearched(true)
+      lastSearch.current = {
+        query: nicheId,
+        filters: { sortBy: 'relevance', site: 'all' },
+        page: 1,
+        action: 'niche',
+      }
+      const cacheKey = `niche_${nicheId}`
+      let clipsToPlay = clipCache.get(cacheKey)
+      let lookupFailed = false
+
+      if (!clipsToPlay) {
+        setLoading(true)
+        try {
+          const params = new URLSearchParams({ q: nicheId, action: 'niche', count: '24', page: '1' })
+          const res = await fetch(`/api/search-redgifs?${params.toString()}`)
+          const data = await res.json()
+          if (!res.ok || !Array.isArray(data)) throw new Error('Niche lookup failed.')
+
+          clipsToPlay = data
+            .filter((c: Record<string, unknown>) => !c.error)
+            .map((c: Record<string, unknown>) => ({
+              clipId: String(c.clipId || ''),
+              title: String(c.title || ''),
+              username: String(c.username || ''),
+              thumbnail: c.thumbnail as string | null,
+              hdUrl: c.hdUrl as string | null,
+              sdUrl: c.sdUrl as string | null,
+              preview: c.preview as string | null,
+              duration: c.duration as number | null,
+              views: c.views as number | null,
+              likes: c.likes as number | null,
+              tags: (c.tags as string[]) || [],
+              verified: Boolean(c.verified),
+              site: 'redgifs',
+              hash: String(c.hash || ''),
+            }))
+          clipCache.set(cacheKey, clipsToPlay)
+        } catch (err) {
+          console.error('Niche fetch failed:', err)
+          lookupFailed = true
+          clipsToPlay = []
+        } finally {
+          if (requestId === nicheRequestId.current) setLoading(false)
         }
+      }
+
+      if (requestId !== nicheRequestId.current) return
+      setClips(clipsToPlay)
+      setHasMore(clipsToPlay.length >= INITIAL_BATCH)
+      if (lookupFailed) setNicheLookupError(true)
+      if (clipsToPlay.length > 0) {
+        setSelectedClipIndex(0)
       }
     },
     []
@@ -596,20 +623,31 @@ export default function SoloLounge() {
         )}
 
         {/* Empty State [Q25] */}
-        {searched && !loading && videos.length === 0 && clips.length === 0 && (
+        {searched && !loading && (contentMode === 'clips' ? clips.length === 0 : videos.length === 0) && (
           <div className="text-center py-24 glass-panel rounded-3xl p-8 max-w-md mx-auto my-8 animate-scale-in">
             <div className="w-14 h-14 rounded-full bg-amber-950/60 border border-amber-900/40 flex items-center justify-center mx-auto mb-4">
               <SearchIcon className="w-6 h-6 text-amber-400/80" />
             </div>
-            <h3 className="text-lg font-serif italic text-[#fef9f5] mb-2">No unseen content found</h3>
+            <h3 className="text-lg font-serif italic text-[#fef9f5] mb-2">
+              {selectedNiche
+                ? nicheLookupError ? 'Clip search unavailable' : `No clips found for “${selectedNiche}”`
+                : 'No unseen content found'}
+            </h3>
             <p className="text-xs text-[#a89582] mb-6">
-              Every scene matching this mood has already passed your eyes. Try rolling the mashup dice for an unexpected pairing.
+              {selectedNiche
+                ? nicheLookupError
+                  ? 'Could not reach the clip provider. You can retry this niche or choose another category.'
+                  : 'The clip provider returned no matches for this tag. Try another generated idea or category.'
+                : 'Every scene matching this mood has already passed your eyes. Try rolling the mashup dice for an unexpected pairing.'}
             </p>
             <button
-              onClick={handleRollDice}
+              onClick={() => {
+                if (selectedNiche && nicheLookupError) void handleNicheSelect(selectedNiche)
+                else handleRollDice()
+              }}
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white text-xs font-semibold shadow-lg shadow-amber-950/50 hover:from-amber-500 hover:to-orange-500 transition cursor-pointer btn-press"
             >
-              Roll Mashup Dice
+              {selectedNiche && nicheLookupError ? 'Try this niche again' : 'Roll Mashup Dice'}
             </button>
           </div>
         )}
