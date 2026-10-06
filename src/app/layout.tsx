@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   description: "A private, welcoming sanctuary for anonymous adult connections.",
 };
 
+import { Providers } from "@/components/Providers";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
@@ -22,7 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className="min-h-full flex flex-col bg-[#0e0a07] text-[#f5ebe0] selection:bg-amber-700/30 selection:text-amber-200">
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );
