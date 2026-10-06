@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { PlayIcon, HomeIcon, SearchIcon, Spinner, GridIcon, FilmIcon } from '@/components/icons'
+import { PlayIcon, HomeIcon, SearchIcon, GridIcon, FilmIcon, DiceIcon } from '@/components/icons'
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
 import VideoCard from '@/components/VideoCard'
 import VideoPlayer from '@/components/VideoPlayer'
@@ -32,8 +32,14 @@ interface VideoWithStream extends Video {
 
 const videoCache = new Map<string, Video[]>()
 const clipCache = new Map<string, Clip[]>()
-const INITIAL_CLIP_COUNT = 10
+const INITIAL_CLIP_COUNT = 12
 const INITIAL_VIDEO_COUNT = 12
+
+const MASHUP_POOL = [
+  'Amateur', 'POV', 'Sensual', 'Romance', 'Golden Hour', 'Verified',
+  'Blowjob', 'Doggy', 'Cowgirl', 'Brunette', 'Blonde', 'Redhead',
+  'Public', 'Masturbation', 'Squirting', 'Creampie', 'Orgasm'
+]
 
 export default function Solo() {
   const router = useRouter()
@@ -45,6 +51,7 @@ export default function Solo() {
   const [extracting, setExtracting] = useState(false)
   const [searched, setSearched] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeMashup, setActiveMashup] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [contentMode, setContentMode] = useState<'videos' | 'clips'>('videos')
@@ -57,8 +64,6 @@ export default function Solo() {
 
     if (append) setLoadingMore(true)
     else lastSearch.current = { query, filters: { sortBy: 'relevance', site: 'all' }, page: 1, action: action === 'niche' ? 'niche' : action === 'trending' ? 'trending' : 'search' }
-
-    const cacheKey = `${action}_${query}_${page}`
 
     if (!append && clipCache.has(`${action}_${query}`)) {
       const cached = clipCache.get(`${action}_${query}`)!
@@ -181,6 +186,7 @@ export default function Solo() {
   const handleSearch = useCallback((query: string, filters: SearchFilters) => {
     setSearchQuery(query)
     setSelectedNiche(null)
+    setActiveMashup(null)
     if (contentMode === 'clips') {
       searchClips(query, 'search')
     } else {
@@ -188,12 +194,30 @@ export default function Solo() {
     }
   }, [contentMode, searchClips, searchVideos])
 
+  const handleRollDice = useCallback(() => {
+    // Generate a random 2-tag mashup
+    const shuffled = [...MASHUP_POOL].sort(() => 0.5 - Math.random())
+    const tag1 = shuffled[0]
+    const tag2 = shuffled[1]
+    const query = `${tag1} ${tag2}`
+
+    setSearchQuery(query)
+    setSelectedNiche(null)
+    setActiveMashup(`${tag1} × ${tag2}`)
+
+    if (contentMode === 'clips') {
+      searchClips(query, 'search')
+    } else {
+      searchVideos(query, { sortBy: 'relevance', site: 'all' })
+    }
+  }, [contentMode, searchClips, searchVideos])
+
   const handleNicheSelect = useCallback(async (nicheId: string | null) => {
     setSelectedNiche(nicheId)
     setSearchQuery('')
+    setActiveMashup(null)
     setContentMode('clips')
     if (nicheId) {
-      // Fetch clips then open TikTok player directly
       const cacheKey = `niche_${nicheId}`
       let clipsToPlay = clipCache.get(cacheKey)
 
@@ -246,6 +270,7 @@ export default function Solo() {
     }
   }, [loadingMore, contentMode, searchClips, searchVideos])
 
+  // Sentinel Intersection Observer with 400px root margin
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current
     if (!sentinel || !hasMore || loadingMore || loading) return
@@ -314,21 +339,35 @@ export default function Solo() {
   const toggleContentMode = useCallback(() => {
     setContentMode(prev => {
       const next = prev === 'videos' ? 'clips' : 'videos'
-      if (next === 'clips') {
-        setSelectedNiche(null)
-        setSearchQuery('')
-      }
-      if (next === 'videos' && videos.length === 0) {
+      setSelectedNiche(null)
+      setSearchQuery('')
+      setActiveMashup(null)
+      if (next === 'clips' && clips.length === 0) {
+        searchClips('trending', 'trending')
+      } else if (next === 'videos' && videos.length === 0) {
         searchVideos('trending', { sortBy: 'relevance', site: 'all' })
       }
       return next
     })
   }, [clips.length, videos.length, searchClips, searchVideos])
 
+  // Initial Auto-Discovery on mount (No blank states)
   useEffect(() => {
     if (!searched) {
       if (contentMode === 'videos' && videos.length === 0) {
-        searchVideos('trending', { sortBy: 'relevance', site: 'all' })
+        let initialTopic = 'trending'
+        try {
+          const stored = sessionStorage.getItem('interests')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              initialTopic = parsed[Math.floor(Math.random() * parsed.length)]
+            }
+          }
+        } catch {}
+        searchVideos(initialTopic, { sortBy: 'relevance', site: 'all' })
+      } else if (contentMode === 'clips' && clips.length === 0) {
+        searchClips('trending', 'trending')
       }
     }
   }, [contentMode, searched, clips.length, videos.length, searchClips, searchVideos])
@@ -359,109 +398,150 @@ export default function Solo() {
 
   return (
     <div className="min-h-dvh bg-[#0e0a07] text-[#f5ebe0]">
-      {/* Header */}
-      <div className="p-4 border-b border-amber-900/30 bg-[#130c07]/80 backdrop-blur-md flex justify-between items-center">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <PlayIcon className="w-6 h-6 text-amber-400" /> Solo Mode
+      {/* Top Header */}
+      <div className="p-4 border-b border-amber-900/30 bg-[#130c07]/85 backdrop-blur-md flex justify-between items-center sticky top-0 z-30">
+        <h2 className="text-xl font-serif italic font-medium flex items-center gap-2 text-[#fef9f5]">
+          <PlayIcon className="w-5 h-5 text-amber-400" />
+          <span>Solo Lounge</span>
         </h2>
         <div className="flex gap-2">
           <button
             onClick={() => router.push('/queue')}
-            className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 rounded-lg text-sm font-semibold hover:from-amber-500 hover:to-orange-500 transition cursor-pointer flex items-center gap-2"
+            className="px-4 py-2 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 rounded-xl text-xs md:text-sm font-semibold hover:from-amber-500 hover:to-orange-500 transition cursor-pointer flex items-center gap-2 shadow-md shadow-amber-900/20"
           >
-            <SearchIcon className="w-4 h-4" /> Find Match
+            <SearchIcon className="w-3.5 h-3.5" />
+            <span>Find Match</span>
           </button>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-[#261b14] border border-amber-900/35 rounded-lg text-sm hover:bg-[#32231a] transition cursor-pointer flex items-center gap-2"
+            className="px-4 py-2 bg-[#261b14] border border-amber-900/35 rounded-xl text-xs md:text-sm hover:bg-[#32231a] transition cursor-pointer flex items-center gap-2 text-[#d4c3b3]"
           >
-            <HomeIcon className="w-4 h-4" /> Home
+            <HomeIcon className="w-3.5 h-3.5" />
+            <span>Home</span>
           </button>
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <div className="max-w-6xl mx-auto">
-          {/* Content Mode Toggle + Search */}
+          {/* Content Mode Toggle + Search + Mashup Dice */}
           <div className="mb-6">
-            {/* Mode toggle */}
-            <div className="flex items-center gap-4 mb-4">
-              <div className="inline-flex rounded-lg border border-amber-900/35 bg-[#1c130d]/80 p-1">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              {/* Content Mode Tabs */}
+              <div className="inline-flex rounded-xl border border-amber-900/35 bg-[#1c130d]/80 p-1">
                 <button
-                  onClick={() => setContentMode('videos')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition cursor-pointer flex items-center gap-2 ${
+                  onClick={() => { if (contentMode !== 'videos') toggleContentMode() }}
+                  className={`px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition cursor-pointer flex items-center gap-2 ${
                     contentMode === 'videos'
-                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/25'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-950/40'
+                      : 'text-[#a89582] hover:text-[#f5ebe0]'
                   }`}
                 >
                   <GridIcon className="w-4 h-4" />
-                  Videos
+                  <span>Videos</span>
                 </button>
                 <button
-                  onClick={toggleContentMode}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition cursor-pointer flex items-center gap-2 ${
+                  onClick={() => { if (contentMode !== 'clips') toggleContentMode() }}
+                  className={`px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition cursor-pointer flex items-center gap-2 ${
                     contentMode === 'clips'
-                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/25'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-950/40'
+                      : 'text-[#a89582] hover:text-[#f5ebe0]'
                   }`}
                 >
                   <FilmIcon className="w-4 h-4" />
-                  Clips
+                  <span>Clips</span>
                 </button>
               </div>
 
+              {/* Status / Discovery Hint */}
+              <div className="hidden sm:flex items-center gap-2 text-xs text-amber-400/80 font-serif italic">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <span>Curated discovery stream</span>
+              </div>
             </div>
 
-            {/* Search */}
-            <SearchAutocomplete
-              onSearch={handleSearch}
-              placeholder={contentMode === 'clips' ? 'Search clips...' : 'Search videos...'}
-              autoFocus
-            />
+            {/* Search Input & Mashup Dice */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <SearchAutocomplete
+                  onSearch={handleSearch}
+                  placeholder={contentMode === 'clips' ? 'Search clips or genres...' : 'Search videos or moods...'}
+                  autoFocus
+                />
+              </div>
+
+              {/* Mashup Dice Discovery Button */}
+              <button
+                type="button"
+                onClick={handleRollDice}
+                title="Roll Mashup Dice (Surprise Discovery)"
+                className="px-4 py-3 bg-gradient-to-r from-amber-600/20 via-orange-600/20 to-amber-600/20 hover:from-amber-600/35 hover:to-orange-600/35 border border-amber-500/40 text-amber-300 hover:text-amber-100 rounded-2xl transition-all shadow-[0_0_15px_rgba(245,158,11,0.15)] hover:shadow-[0_0_20px_rgba(245,158,11,0.35)] flex items-center gap-2 cursor-pointer btn-press shrink-0"
+              >
+                <DiceIcon className="w-5 h-5 text-amber-400 animate-pulse" />
+                <span className="hidden sm:inline text-xs font-semibold uppercase tracking-wider">Mashup</span>
+              </button>
+            </div>
+
+            {/* Active Mashup Badge */}
+            {activeMashup && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-amber-300/90 bg-amber-950/40 border border-amber-800/40 py-1.5 px-3.5 rounded-full w-fit">
+                <DiceIcon className="w-3.5 h-3.5 text-amber-400" />
+                <span>Currently exploring mashup: <strong>{activeMashup}</strong></span>
+                <button 
+                  onClick={() => setActiveMashup(null)} 
+                  className="ml-1 text-amber-400/60 hover:text-amber-200 cursor-pointer"
+                >
+                  ×
+                </button>
+              </div>
+            )}
 
             {/* Niches bar (only in clips mode) */}
-            {contentMode === 'clips' && !selectedNiche && !searchQuery.trim() && (
+            {contentMode === 'clips' && !selectedNiche && !searchQuery.trim() && !activeMashup && (
               <div className="mt-4">
                 <NichesBar selectedNiche={selectedNiche} onSelect={handleNicheSelect} />
               </div>
             )}
           </div>
 
-          {/* Extracting overlay */}
+          {/* Extracting Private Stream Overlay */}
           {extracting && (
-            <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center backdrop-blur-sm">
-              <div className="text-center animate-scale-in">
-                <Spinner className="w-10 h-10 text-purple-400 mx-auto mb-4" />
-                <p className="text-sm text-gray-300">Loading video...</p>
+            <div className="fixed inset-0 bg-[#0e0a07]/85 z-40 flex items-center justify-center backdrop-blur-md">
+              <div className="text-center animate-scale-in bg-[#1c130d]/90 border border-amber-900/40 p-8 rounded-3xl shadow-2xl shadow-black/80 max-w-sm mx-4">
+                <div className="relative w-12 h-12 mx-auto mb-4">
+                  <div className="absolute inset-0 rounded-full border-2 border-amber-900/30" />
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-amber-400 border-r-amber-500 animate-spin" />
+                </div>
+                <p className="text-base font-serif italic text-[#f5ebe0]">Connecting private stream...</p>
+                <p className="text-xs text-[#a89582] mt-1 font-light">Discreet & ephemeral viewing</p>
               </div>
             </div>
           )}
 
-          {/* Loading skeleton */}
-          {loading && videos.length === 0 && clips.length === 0 && (contentMode === 'videos' || selectedNiche || searchQuery.trim()) && (
+          {/* Obsidian & Amber Skeleton Loading System */}
+          {loading && videos.length === 0 && clips.length === 0 && (
             contentMode === 'clips' ? (
               <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 stagger-children">
-                {[...Array(10)].map((_, i) => (
+                {[...Array(12)].map((_, i) => (
                   <div key={i} className="break-inside-avoid mb-3">
-                    <div className="bg-gray-900 rounded-xl overflow-hidden animate-slide-up" style={{ aspectRatio: '9/14' }}>
-                      <div className="w-full h-full bg-gray-800 animate-shimmer" />
+                    <div className="bg-[#1c130d] border border-amber-900/30 rounded-2xl overflow-hidden animate-slide-up" style={{ aspectRatio: '9/16' }}>
+                      <div className="w-full h-full bg-gradient-to-tr from-amber-950/20 via-amber-600/10 to-transparent animate-pulse" />
                     </div>
                     <div className="px-1 mt-2 space-y-1.5">
-                      <div className="h-3 bg-gray-800 rounded w-2/3 animate-shimmer" />
-                      <div className="h-2.5 bg-gray-800 rounded w-1/2 animate-shimmer" />
+                      <div className="h-3 bg-amber-950/60 rounded-md w-2/3 animate-pulse" />
+                      <div className="h-2.5 bg-amber-950/40 rounded-md w-1/2 animate-pulse" />
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className="bg-gray-900 rounded-lg overflow-hidden animate-slide-up">
-                    <div className="aspect-video bg-gray-800 animate-shimmer" />
+                {[...Array(12)].map((_, i) => (
+                  <div key={i} className="bg-[#1c130d] border border-amber-900/30 rounded-2xl overflow-hidden animate-slide-up shadow-md">
+                    <div className="aspect-video bg-gradient-to-tr from-amber-950/20 via-amber-600/10 to-transparent animate-pulse" />
                     <div className="p-3 space-y-2">
-                      <div className="h-4 bg-gray-800 rounded w-3/4 animate-shimmer" />
-                      <div className="h-3 bg-gray-800 rounded w-1/2 animate-shimmer" />
+                      <div className="h-3.5 bg-amber-950/60 rounded-md w-3/4 animate-pulse" />
+                      <div className="h-2.5 bg-amber-950/40 rounded-md w-1/2 animate-pulse" />
                     </div>
                   </div>
                 ))}
@@ -469,25 +549,23 @@ export default function Solo() {
             )
           )}
 
-          {/* Empty State */}
-          {!searched && !loading && contentMode === 'videos' && (
-            <div className="text-center py-20 text-gray-500">
-              <SearchIcon className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-              <p className="text-lg">Start typing to search</p>
-              <p className="text-sm mt-2">Videos from XVideos</p>
-            </div>
-          )}
-
-          {/* No Results */}
-          {searched && !loading && videos.length === 0 && clips.length === 0 && (contentMode === 'videos' || selectedNiche || searchQuery.trim()) && (
-            <div className="text-center py-20 text-gray-500">
-              <p className="text-lg">No new content found</p>
-              <p className="text-sm mt-2">Try a different search term</p>
+          {/* No Results Fallback */}
+          {searched && !loading && videos.length === 0 && clips.length === 0 && (
+            <div className="text-center py-20 text-[#a89582]">
+              <SearchIcon className="w-12 h-12 mx-auto mb-3 text-amber-500/40" />
+              <p className="text-base font-serif italic text-[#f5ebe0]">No unseen content found for this search</p>
+              <p className="text-xs mt-1 text-[#8c7867]">Try rolling the Mashup Dice or entering a different mood</p>
+              <button
+                onClick={handleRollDice}
+                className="mt-4 px-5 py-2.5 bg-[#241a13] border border-amber-900/40 rounded-xl text-xs text-amber-300 hover:text-amber-100 hover:border-amber-700/60 transition cursor-pointer"
+              >
+                Roll Mashup Dice
+              </button>
             </div>
           )}
 
           {/* Clips Masonry Grid */}
-          {contentMode === 'clips' && (selectedNiche || searchQuery.trim()) && clips.length > 0 && (
+          {contentMode === 'clips' && clips.length > 0 && (
             <MasonryGrid clips={clips} onClipClick={handleClipClick} />
           )}
 
@@ -511,7 +589,7 @@ export default function Solo() {
             </div>
           )}
 
-          {/* Load More */}
+          {/* Load More & Infinite Scroll Sentinel */}
           {searched && ((contentMode === 'clips' && clips.length > 0) || (contentMode === 'videos' && videos.length > 0)) && hasMore && (
             <>
               <div ref={loadMoreSentinelRef} className="h-10" aria-hidden="true" />
@@ -519,9 +597,16 @@ export default function Solo() {
                 <button
                   onClick={loadMore}
                   disabled={loadingMore}
-                  className="px-6 py-3 bg-gray-800 rounded-lg text-sm font-semibold text-gray-200 hover:bg-gray-700 disabled:opacity-50 transition-all cursor-pointer btn-press"
+                  className="px-8 py-3.5 bg-[#231811] hover:bg-[#2d2017] border border-amber-900/40 hover:border-amber-700/60 rounded-2xl text-xs md:text-sm font-medium text-[#f5ebe0] shadow-md hover:shadow-amber-900/20 disabled:opacity-50 transition-all cursor-pointer btn-press flex items-center gap-2"
                 >
-                  {loadingMore ? 'Loading...' : 'Load more'}
+                  {loadingMore ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-amber-500/40 border-t-amber-400 rounded-full animate-spin" />
+                      <span>Loading more...</span>
+                    </>
+                  ) : (
+                    <span>Discover More</span>
+                  )}
                 </button>
               </div>
             </>

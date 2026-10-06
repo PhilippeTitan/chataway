@@ -10,11 +10,11 @@ import { useUser } from '@/utils/supabase/useUser'
 export default function Landing() {
   const router = useRouter()
   const { user, isAnonymous, signInAnonymously, signOut } = useUser()
-  const [step, setStep] = useState<'age' | 'tos' | 'gender'>('age')
+  const [step, setStep] = useState<'welcome' | 'gender'>('welcome')
   const [gender, setGender] = useState<'man' | 'woman' | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
 
-  const handleNextStep = (next: 'tos' | 'gender') => {
+  const handleNextStep = (next: 'gender') => {
     setIsTransitioning(true)
     setTimeout(() => {
       setStep(next)
@@ -22,8 +22,8 @@ export default function Landing() {
     }, 250)
   }
 
-  // Ensure an anonymous session is provisioned once TOS is accepted
-  const handleAcceptTos = async () => {
+  // Ensure an anonymous session is provisioned once Compact is accepted
+  const handleAcceptCompact = async () => {
     if (!user) {
       await signInAnonymously()
     }
@@ -85,15 +85,13 @@ export default function Landing() {
 
   const renderStepIndicator = (current: number) => (
     <div className="flex items-center justify-center gap-3 mb-8">
-      {[1, 2, 3].map((s) => (
+      {[1, 2].map((s) => (
         <div
           key={s}
           className={`h-1.5 rounded-full transition-all duration-500 ${
             s === current
-              ? 'w-8 bg-gradient-to-r from-amber-400 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
-              : s < current
-              ? 'w-4 bg-amber-700/60'
-              : 'w-4 bg-amber-950/40'
+              ? 'w-10 bg-gradient-to-r from-amber-400 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+              : 'w-4 bg-amber-950/50'
           }`}
         />
       ))}
@@ -111,8 +109,8 @@ export default function Landing() {
             isTransitioning ? 'opacity-0 translate-y-3 scale-98' : 'opacity-100 translate-y-0 scale-100'
           }`}
         >
-          {/* STEP 1: THE WELCOMING THRESHOLD (AGE VERIFICATION) */}
-          {step === 'age' && (
+          {/* STEP 1: CONSOLIDATED SANCTUARY THRESHOLD & COMPACT */}
+          {step === 'welcome' && (
             <div className="relative backdrop-blur-2xl bg-[#1c130d]/75 border border-amber-900/35 rounded-3xl p-8 md:p-12 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(245,235,224,0.12)] text-center">
               {renderStepIndicator(1)}
 
@@ -120,20 +118,20 @@ export default function Landing() {
                 A Quiet Sunset Sanctuary
               </span>
 
-              {/* Scenic Sunset Terrace Visual */}
+              {/* Atmospheric Header Visual */}
               <div className="relative w-full h-44 md:h-52 rounded-2xl overflow-hidden mb-6 border border-amber-900/40 shadow-inner group">
                 <img 
-                  src="/images/sunset-terrace.jpg" 
-                  alt="Tranquil Sunset Veranda" 
+                  src="/images/onboarding-welcome.jfif" 
+                  alt="Tranquil Sunset Sanctuary" 
                   className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-1000 ease-out"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1c130d] via-transparent to-black/30" />
                 <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs text-[#f5ebe0]/90 font-serif italic">
                   <span className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                    Afternoon Ocean Breeze
+                    Golden Hour Sanctuary
                   </span>
-                  <span>Golden Hour</span>
+                  <span>Adults Only (18+)</span>
                 </div>
               </div>
 
@@ -141,38 +139,69 @@ export default function Landing() {
                 Welcome. Take a breath and settle in.
               </h1>
 
-              <p className="text-[#c7b5a3] text-sm md:text-base leading-relaxed max-w-md mx-auto mb-8 font-light">
-                CHATAway is a discreet, unhurried space for adults to converse, unwind, and share company without noise or judgment.
+              <p className="text-[#c7b5a3] text-sm md:text-base leading-relaxed max-w-md mx-auto mb-6 font-light">
+                CHATAway is an unhurried haven for adults to connect, converse, and share company without noise or judgment.
               </p>
 
-              <div className="p-5 rounded-2xl bg-[#130c07]/60 border border-amber-900/25 mb-8 text-left flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-amber-950/60 border border-amber-800/40 flex items-center justify-center shrink-0 text-amber-400 mt-0.5">
-                  <span className="font-serif italic font-semibold text-lg">18+</span>
+              {/* The Sanctuary Compact (3 Principles) */}
+              <div className="space-y-2.5 mb-8 text-left">
+                <div className="p-3.5 rounded-2xl bg-[#140d08]/75 border border-amber-900/30 flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-amber-950/80 text-amber-400 flex items-center justify-center shrink-0 text-xs font-semibold mt-0.5">
+                    1
+                  </div>
+                  <div>
+                    <h2 className="text-xs md:text-sm font-medium text-[#f5ebe0]">
+                      Kindness & Full Consent
+                    </h2>
+                    <p className="text-[11px] md:text-xs text-[#a89582] leading-relaxed">
+                      You are always in complete control. Skip or leave any conversation instantly.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-sm font-medium text-[#f5ebe0] mb-1">
-                    An adult-only environment
-                  </h2>
-                  <p className="text-xs text-[#a89582] leading-relaxed">
-                    To preserve our privacy and community care, please confirm you are at least eighteen years of age.
-                  </p>
+
+                <div className="p-3.5 rounded-2xl bg-[#140d08]/75 border border-amber-900/30 flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-amber-950/80 text-amber-400 flex items-center justify-center shrink-0 text-xs font-semibold mt-0.5">
+                    2
+                  </div>
+                  <div>
+                    <h2 className="text-xs md:text-sm font-medium text-[#f5ebe0]">
+                      Absolute Privacy & Discretion
+                    </h2>
+                    <p className="text-[11px] md:text-xs text-[#a89582] leading-relaxed">
+                      Never share real names, addresses, contacts, or financial handles. Remain discreet.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#140d08]/75 border border-amber-900/30 flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-amber-950/80 text-amber-400 flex items-center justify-center shrink-0 text-xs font-semibold mt-0.5">
+                    3
+                  </div>
+                  <div>
+                    <h2 className="text-xs md:text-sm font-medium text-[#f5ebe0]">
+                      Ephemeral Sessions & Clean Exits
+                    </h2>
+                    <p className="text-[11px] md:text-xs text-[#a89582] leading-relaxed">
+                      Chats vanish when you depart. No recording, no permanent tracking or archives.
+                    </p>
+                  </div>
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3.5 justify-center">
                 <button
-                  onClick={() => handleNextStep('tos')}
+                  onClick={handleAcceptCompact}
                   className="px-8 py-4 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white font-medium rounded-2xl transition-all duration-300 shadow-[0_8px_24px_-4px_rgba(234,88,12,0.4)] hover:shadow-[0_12px_32px_-4px_rgba(234,88,12,0.6)] cursor-pointer flex items-center justify-center gap-2.5 group"
                 >
                   <CheckIcon className="w-5 h-5 text-amber-200 group-hover:scale-110 transition-transform" />
-                  <span>Yes, I am 18 or older</span>
+                  <span>I am 18+ and Accept the Compact</span>
                 </button>
 
                 <button
                   onClick={() => (window.location.href = 'https://google.com')}
                   className="px-6 py-4 bg-[#231811]/80 hover:bg-[#2d2017] border border-amber-900/30 text-[#b5a290] hover:text-[#f5ebe0] rounded-2xl font-medium transition-all duration-200 cursor-pointer"
                 >
-                  No, take me back
+                  Decline
                 </button>
               </div>
 
@@ -182,95 +211,10 @@ export default function Landing() {
             </div>
           )}
 
-          {/* STEP 2: SANCTUARY PRINCIPLES & GUIDELINES (TOS) */}
-          {step === 'tos' && (
-            <div className="relative backdrop-blur-2xl bg-[#1c130d]/75 border border-amber-900/35 rounded-3xl p-8 md:p-12 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(245,235,224,0.12)]">
-              {renderStepIndicator(2)}
-
-              <div className="text-center mb-6">
-                <span className="inline-block uppercase tracking-[0.25em] text-[11px] font-medium text-amber-400/90 mb-2">
-                  Sanctuary Etiquette
-                </span>
-                <h1 className="text-3xl font-serif text-[#fef9f5] font-light tracking-wide mb-2">
-                  Mutual Respect & Discretion
-                </h1>
-                <p className="text-sm text-[#b5a290]">
-                  By stepping inside, you contribute to a calm, trustworthy haven.
-                </p>
-              </div>
-
-              <div className="space-y-3 mb-8 max-h-[300px] overflow-y-auto pr-2">
-                <div className="p-4 rounded-2xl bg-[#140d08]/70 border border-amber-900/25 flex items-start gap-3.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-950/80 text-amber-400 flex items-center justify-center shrink-0 text-sm font-semibold">
-                    1
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-medium text-[#f5ebe0]">
-                      Respect boundaries & full consent
-                    </h2>
-                    <p className="text-xs text-[#a89582] mt-0.5">
-                      Kindness and consent guide every exchange. You are free to end or skip a conversation at any second.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-[#140d08]/70 border border-amber-900/25 flex items-start gap-3.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-950/80 text-amber-400 flex items-center justify-center shrink-0 text-sm font-semibold">
-                    2
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-medium text-[#f5ebe0]">
-                      Guard your private identity
-                    </h2>
-                    <p className="text-xs text-[#a89582] mt-0.5">
-                      Never exchange telephone numbers, addresses, social handles, or financial accounts.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-[#140d08]/70 border border-amber-900/25 flex items-start gap-3.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-950/80 text-amber-400 flex items-center justify-center shrink-0 text-sm font-semibold">
-                    3
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-medium text-[#f5ebe0]">
-                      No bots, recording, or harassment
-                    </h2>
-                    <p className="text-xs text-[#a89582] mt-0.5">
-                      Screen recording without consent and commercial spam lead to immediate, irreversible removal.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-[#140d08]/70 border border-amber-900/25 flex items-start gap-3.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-950/80 text-amber-400 flex items-center justify-center shrink-0 text-sm font-semibold">
-                    4
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-medium text-[#f5ebe0]">
-                      Discreet & ephemeral by design
-                    </h2>
-                    <p className="text-xs text-[#a89582] mt-0.5">
-                      Your chat sessions expire when you leave. Nothing is permanently archived or shared.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={handleAcceptTos}
-                className="w-full py-4 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white font-medium rounded-2xl transition-all duration-300 shadow-[0_8px_24px_-4px_rgba(234,88,12,0.4)] hover:shadow-[0_12px_32px_-4px_rgba(234,88,12,0.6)] cursor-pointer flex items-center justify-center gap-2"
-              >
-                <CheckIcon className="w-5 h-5 text-amber-200" />
-                <span>I Agree & Step Inside</span>
-              </button>
-            </div>
-          )}
-
-          {/* STEP 3: IDENTITY & PRESENCE (GENDER SELECTION) */}
+          {/* STEP 2: IDENTITY & PRESENCE (GENDER SELECTION) */}
           {step === 'gender' && (
             <div className="relative backdrop-blur-2xl bg-[#1c130d]/75 border border-amber-900/35 rounded-3xl p-8 md:p-12 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(245,235,224,0.12)] text-center">
-              {renderStepIndicator(3)}
+              {renderStepIndicator(2)}
 
               <span className="inline-block uppercase tracking-[0.25em] text-[11px] font-medium text-amber-400/90 mb-3">
                 Your Presence
