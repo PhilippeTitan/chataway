@@ -4,7 +4,7 @@ import { Suspense, useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CloseIcon, ChatIcon, VideoIcon, SearchIcon, BoltIcon, SendIcon } from '@/components/icons'
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
-import VideoCard from '@/components/VideoCard'
+import { MediaCard } from '@/components/MediaCard'
 import VideoPlayer from '@/components/VideoPlayer'
 import ControlMode from '@/components/ControlMode'
 import { filterSeen, markSeen } from '@/utils/dedup'
@@ -983,19 +983,23 @@ function WatchContent() {
 
           {/* Video Grid */}
           {videos.length > 0 && (
-            <div className={viewMode === 'feed' ? 'max-w-md mx-auto space-y-8' : 'grid grid-cols-2 lg:grid-cols-3 gap-4'}>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               {videos.map((video) => (
-                <VideoCard
+                <MediaCard
                   key={`${video.hash || video.videoId}_${video.thumbnail || ''}`}
-                  videoId={video.videoId}
-                  title={video.title}
-                  thumbnail={video.thumbnail}
-                  preview={video.preview}
-                  duration={video.duration}
-                  views={video.views}
-                  site={video.site}
-                  variant={viewMode}
-                  onClick={() => handleVideoClick(video)}
+                  item={{
+                    id: video.videoId,
+                    title: video.title,
+                    thumbnail: video.thumbnail,
+                    preview: video.preview,
+                    duration: video.duration,
+                    views: video.views,
+                    site: video.site,
+                    siteUrl: video.siteUrl,
+                    hash: video.hash,
+                  }}
+                  variant="video"
+                  onSelect={() => handleVideoClick(video)}
                 />
               ))}
             </div>
