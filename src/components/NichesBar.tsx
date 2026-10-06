@@ -1,7 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { FireIcon, HeartIcon, BoltIcon, SparklesIcon, GlobeIcon, UsersIcon, EyeIcon, HandIcon, VideoIcon } from '@/components/icons'
+import React, { useState, useEffect, useRef } from 'react'
+import {
+  FireIcon,
+  HeartIcon,
+  BoltIcon,
+  SparklesIcon,
+  GlobeIcon,
+  UsersIcon,
+  EyeIcon,
+  HandIcon,
+  VideoIcon,
+} from '@/components/icons'
+import { haptics } from '@/utils/haptics'
 import type { Niche } from '@/types/clips'
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -21,18 +32,14 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 }
 
 const TILE_GRADIENTS = [
-  'from-rose-600 via-pink-700 to-[#1a0a12]',
-  'from-amber-600 via-orange-700 to-[#1a100a]',
-  'from-violet-600 via-purple-700 to-[#150a1a]',
-  'from-emerald-600 via-teal-700 to-[#0a1a15]',
-  'from-sky-600 via-blue-700 to-[#0a121a]',
-  'from-fuchsia-600 via-purple-800 to-[#1a0a18]',
-  'from-red-600 via-rose-700 to-[#1a0a0e]',
-  'from-teal-600 via-cyan-700 to-[#0a1a1a]',
-  'from-indigo-600 via-violet-700 to-[#0e0a1a]',
-  'from-orange-600 via-red-700 to-[#1a0f0a]',
-  'from-pink-600 via-fuchsia-700 to-[#1a0a15]',
-  'from-cyan-600 via-blue-700 to-[#0a151a]',
+  'from-rose-600/40 via-pink-700/30 to-[#160e0a]',
+  'from-amber-600/40 via-orange-700/30 to-[#160e0a]',
+  'from-violet-600/40 via-purple-700/30 to-[#160e0a]',
+  'from-emerald-600/40 via-teal-700/30 to-[#160e0a]',
+  'from-sky-600/40 via-blue-700/30 to-[#160e0a]',
+  'from-fuchsia-600/40 via-purple-800/30 to-[#160e0a]',
+  'from-red-600/40 via-rose-700/30 to-[#160e0a]',
+  'from-teal-600/40 via-cyan-700/30 to-[#160e0a]',
 ]
 
 interface NichesBarProps {
@@ -42,6 +49,9 @@ interface NichesBarProps {
 
 export default function NichesBar({ selectedNiche, onSelect }: NichesBarProps) {
   const [niches, setNiches] = useState<Niche[]>([])
+  const [hoveredNiche, setHoveredNiche] = useState<string | null>(null)
+  const [previews, setPreviews] = useState<Record<string, string>>({})
+  const previewCache = useRef<Record<string, string>>({})
 
   useEffect(() => {
     const fetchNiches = async () => {
@@ -58,55 +68,121 @@ export default function NichesBar({ selectedNiche, onSelect }: NichesBarProps) {
     fetchNiches()
   }, [])
 
+  // Lazy-fetch top preview clip for hovered category (like RedGifs native UI)
+  const handleMouseEnter = async (nicheId: string) => {
+    setHoveredNiche(nicheId)
+    if (previewCache.current[nicheId]) {
+      setPreviews((prev) => ({ ...prev, [nicheId]: previewCache.current[nicheId] }))
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/search-redgifs?q=${encodeURIComponent(nicheId)}&action=niche&count=1`)
+      const data = await res.json()
+      if (Array.isArray(data) && data[0]?.preview) {
+        const previewUrl = data[0].preview as string
+        previewCache.current[nicheId] = previewUrl
+        setPreviews((prev) => ({ ...prev, [nicheId]: previewUrl }))
+      }
+    } catch {
+      // Ignore preview fetch failures silently
+    }
+  }
+
+  const handleMouseLeave = () => {
+    setHoveredNiche(null)
+  }
+
+  const handleClick = (nicheId: string) => {
+    haptics.confirm()
+    onSelect(selectedNiche === nicheId ? null : nicheId)
+  }
+
   if (niches.length === 0) return null
 
   return (
-    <div>
-      <div className="flex items-end justify-between gap-4 mb-5">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-amber-400/80">Niches</p>
-          <h3 className="text-2xl font-serif text-[#fef9f5] mt-1">Browse by category</h3>
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-3.5">
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          <h3 className="text-xs uppercase tracking-widest font-mono text-amber-400/90 font-medium">
+            Explore Vibes & Categories
+          </h3>
         </div>
-        <span className="text-xs text-[#8c7867]">{niches.length} categories</span>
+        <span className="text-[11px] font-mono text-[#a89582]">{niches.length} niches</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 stagger-children">
+      {/* Horizontally scrolling Mood Ring Carousel */}
+      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
         {niches.map((niche, index) => {
           const IconComp = ICON_MAP[niche.icon] || SparklesIcon
           const isSelected = selectedNiche === niche.id
+          const previewSrc = previews[niche.id]
+          const isHovered = hoveredNiche === niche.id
+
           return (
             <button
               key={niche.id}
-              onClick={() => onSelect(niche.id)}
-              className={`group relative overflow-hidden rounded-xl text-left cursor-pointer btn-press transition-all duration-300 animate-slide-up ${
+              onClick={() => handleClick(niche.id)}
+              onMouseEnter={() => handleMouseEnter(niche.id)}
+              onMouseLeave={handleMouseLeave}
+              className={`group relative shrink-0 w-32 sm:w-36 rounded-2xl overflow-hidden text-left cursor-pointer btn-press border transition-all duration-300 snap-start aspect-[3/4] ${
                 isSelected
-                  ? 'ring-2 ring-amber-400 shadow-lg shadow-amber-950/50'
-                  : 'hover:-translate-y-1 hover:shadow-xl hover:shadow-black/40'
+                  ? 'border-amber-400 ring-2 ring-amber-400/60 shadow-xl shadow-amber-950/60'
+                  : 'border-amber-900/30 hover:border-amber-600/50 hover:shadow-lg hover:shadow-amber-950/40'
               }`}
-              style={{ aspectRatio: '9/14' }}
             >
-              <div className={`absolute inset-0 bg-gradient-to-br ${TILE_GRADIENTS[index % TILE_GRADIENTS.length]}`} />
+              {/* Background Gradient */}
+              <div
+                className={`absolute inset-0 bg-gradient-to-br ${
+                  TILE_GRADIENTS[index % TILE_GRADIENTS.length]
+                } transition-opacity duration-300`}
+              />
 
-              {/* Large faded icon in background */}
-              <div className="absolute -right-6 -bottom-8 opacity-10 transition-all duration-700 group-hover:opacity-20 group-hover:scale-110 group-hover:rotate-12">
-                <IconComp className="w-36 h-36 text-white" />
+              {/* Live Animated Looping Preview Video from RedGifs Top Ranked Clip */}
+              {previewSrc && (
+                <video
+                  src={previewSrc}
+                  muted
+                  loop
+                  autoPlay
+                  playsInline
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                    isHovered || isSelected ? 'opacity-85 scale-105' : 'opacity-35'
+                  }`}
+                />
+              )}
+
+              {/* Faded background icon fallback */}
+              {!previewSrc && (
+                <div className="absolute -right-4 -bottom-4 opacity-15 transition-all duration-500 group-hover:scale-110 group-hover:opacity-25">
+                  <IconComp className="w-24 h-24 text-amber-200" />
+                </div>
+              )}
+
+              {/* Dark vignette overlay for crisp readability */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0e0a07] via-[#0e0a07]/50 to-transparent" />
+
+              {/* Top Accent Icon */}
+              <div className="relative p-3 flex justify-between items-start z-10">
+                <span className="p-1.5 rounded-lg bg-[#0e0a07]/60 backdrop-blur-md border border-amber-900/40 text-amber-300">
+                  <IconComp className="w-3.5 h-3.5" />
+                </span>
+                {isSelected && (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                )}
               </div>
 
-              {/* Dark overlay at bottom for text readability */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-
-              {/* Subtle shine effect on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-              {/* Content */}
-              <div className="relative h-full flex flex-col justify-between p-4">
-                <IconComp className="w-6 h-6 text-white/70 group-hover:text-white/90 transition-colors" />
-                <div>
-                  <span className="text-base sm:text-lg font-bold text-white leading-tight drop-shadow-lg">
-                    {niche.name}
-                  </span>
-                  <div className="w-8 h-0.5 bg-amber-400/60 mt-2 rounded-full group-hover:w-12 transition-all duration-300" />
-                </div>
+              {/* Bottom Label */}
+              <div className="absolute bottom-0 inset-x-0 p-3 z-10">
+                <p className="text-xs sm:text-sm font-semibold text-[#f5ebe0] truncate group-hover:text-amber-200 transition-colors">
+                  {niche.name}
+                </p>
+                <div
+                  className={`h-0.5 bg-amber-400/80 rounded-full mt-1.5 transition-all duration-300 ${
+                    isSelected ? 'w-full' : 'w-4 group-hover:w-8'
+                  }`}
+                />
               </div>
             </button>
           )
