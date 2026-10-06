@@ -2,145 +2,145 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import SunsetBackdrop from '@/components/SunsetBackdrop'
-import { SearchIcon, PlayIcon } from '@/components/icons'
+import { SearchIcon, PlayIcon, SparklesIcon } from '@/components/icons'
+import { Button } from '@/components/ui/Button'
+import { useSanctuary } from '@/context/SanctuaryContext'
+import { haptics } from '@/utils/haptics'
 
-const allInterests = [
-  'Amateur', 'Anal', 'Asian', 'BBW', 'Big Ass', 'Big Tits', 'Blonde', 'Blowjob',
-  'Brunette', 'Creampie', 'Cowgirl', 'Deepthroat', 'Doggy', 'Facial', 'Hentai',
-  'Interracial', 'Lesbian', 'Masturbation', 'MILF', 'Orgasm', 'POV', 'Public',
-  'Redhead', 'Rough', 'Solo', 'Squirting', 'Teen', 'Threesome', 'Titty Fuck',
-  'Webcam', 'Young'
+const DESIRE_TILES = [
+  { name: 'Sensual & Slow', gradient: 'from-amber-600/30 to-orange-800/20' },
+  { name: 'POV Exploration', gradient: 'from-orange-600/30 to-red-800/20' },
+  { name: 'Amateur Intimacy', gradient: 'from-rose-600/30 to-pink-800/20' },
+  { name: 'Romance & Velvet', gradient: 'from-purple-600/30 to-indigo-800/20' },
+  { name: 'Daring Edge', gradient: 'from-red-600/30 to-rose-900/20' },
+  { name: 'Blowjob & Tease', gradient: 'from-pink-600/30 to-purple-800/20' },
+  { name: 'Cowgirl Rhythm', gradient: 'from-amber-500/30 to-yellow-800/20' },
+  { name: 'Deep Doggy', gradient: 'from-emerald-600/30 to-teal-800/20' },
+  { name: 'Masturbation & Solo', gradient: 'from-violet-600/30 to-purple-800/20' },
+  { name: 'Squirting Waves', gradient: 'from-cyan-600/30 to-blue-800/20' },
+  { name: 'Golden Hour Orgasm', gradient: 'from-orange-500/30 to-amber-700/20' },
+  { name: 'Creampie Bliss', gradient: 'from-rose-500/30 to-red-800/20' },
+  { name: 'Public Thrill', gradient: 'from-teal-600/30 to-cyan-800/20' },
+  { name: 'Brunette Grace', gradient: 'from-stone-600/30 to-amber-900/20' },
+  { name: 'Blonde Radiance', gradient: 'from-yellow-600/30 to-orange-800/20' },
+  { name: 'Redhead Spark', gradient: 'from-red-500/30 to-orange-900/20' },
 ]
 
-export default function Interests() {
+export default function DesireBoard() {
   const router = useRouter()
+  const { setInterests: setGlobalInterests } = useSanctuary()
   const [selected, setSelected] = useState<string[]>([])
 
-  const toggle = (interest: string) => {
-    setSelected(prev => 
-      prev.includes(interest) 
-        ? prev.filter(i => i !== interest)
-        : prev.length < 15 
-          ? [...prev, interest]
-          : prev
+  const toggle = (desire: string) => {
+    haptics.lightTap()
+    setSelected((prev) =>
+      prev.includes(desire)
+        ? prev.filter((d) => d !== desire)
+        : prev.length < 8
+        ? [...prev, desire]
+        : prev
     )
   }
 
   const handleEnterMatchmaking = () => {
+    haptics.confirm()
+    setGlobalInterests(selected)
     sessionStorage.setItem('interests', JSON.stringify(selected))
     router.push('/queue')
   }
 
   const handleEnterSolo = () => {
+    haptics.confirm()
+    setGlobalInterests(selected)
     sessionStorage.setItem('interests', JSON.stringify(selected))
     router.push('/solo')
   }
 
-  const handleSkipTo = (destination: '/queue' | '/solo') => {
-    sessionStorage.setItem('interests', '[]')
-    router.push(destination)
-  }
-
   return (
-    <div className="relative min-h-dvh text-[#f5ebe0] flex flex-col items-center justify-center p-6 safe-top safe-bottom selection:bg-amber-800/40 selection:text-amber-200">
-      <SunsetBackdrop />
+    <div className="relative min-h-dvh bg-[#0e0a07] text-[#f5ebe0] flex flex-col justify-between p-4 sm:p-6 overflow-hidden select-none selection:bg-amber-700/30 selection:text-amber-200">
+      {/* Background Ambient Glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[40rem] h-[30rem] bg-amber-600/10 rounded-full blur-[160px] pointer-events-none" />
 
-      <main className="relative z-10 w-full max-w-3xl mx-auto backdrop-blur-2xl bg-[#1c130d]/75 border border-amber-900/35 rounded-3xl p-8 md:p-12 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(245,235,224,0.12)] text-center">
-        {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-3 mb-6">
-          <div className="h-1.5 rounded-full w-4 bg-amber-700/60" />
-          <div className="h-1.5 rounded-full w-10 bg-gradient-to-r from-amber-400 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
-        </div>
-
-        <span className="inline-block uppercase tracking-[0.25em] text-[11px] font-medium text-amber-400/90 mb-3">
-          Step 2 · Desires & Moods
+      {/* Top Header Bar */}
+      <header className="max-w-4xl mx-auto w-full pt-4 pb-2 text-center z-10">
+        <span className="inline-block uppercase tracking-[0.25em] text-[11px] font-mono text-amber-400/90 mb-1.5">
+          Desire Board · Curate Your Vibe
         </span>
-
-        {/* Visual Banner */}
-        <div className="relative w-full h-36 md:h-44 rounded-2xl overflow-hidden mb-6 border border-amber-900/40 shadow-inner group">
-          <img 
-            src="/images/onboarding-interests.jfif" 
-            alt="Warm Atmospheric Sanctuary" 
-            className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-1000 ease-out"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1c130d] via-transparent to-black/30" />
-          <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs text-[#f5ebe0]/90 font-serif italic">
-            <span>Curate Your Atmosphere</span>
-            <span>Personalized Experience</span>
-          </div>
-        </div>
-
-        <h1 className="text-3xl md:text-4xl font-serif text-[#fef9f5] font-light tracking-wide mb-3">
-          What draws your attention today?
-        </h1>
-
-        <p className="text-[#c7b5a3] text-sm md:text-base leading-relaxed max-w-lg mx-auto mb-6 font-light">
-          Choose a few themes that match your curiosity. We use these gently to pair you with someone who shares your pace, or to curate your Solo feed.
+        <h2 className="text-2xl sm:text-3xl font-serif italic text-[#fef9f5]">
+          What draws your attention tonight?
+        </h2>
+        <p className="text-xs sm:text-sm text-[#a89582] mt-1 font-light">
+          Tap up to 8 vibes to align matchmaking and solo curation.
         </p>
-        
-        <div className="flex flex-wrap gap-2.5 justify-center max-w-2xl mx-auto mb-6 stagger-children">
-          {allInterests.map(interest => {
-            const isSelected = selected.includes(interest)
+      </header>
+
+      {/* Visual Desire Tiles Grid [Q12] */}
+      <main className="max-w-4xl mx-auto w-full py-6 z-10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 stagger-children">
+          {DESIRE_TILES.map((tile) => {
+            const isSelected = selected.includes(tile.name)
             return (
               <button
-                key={interest}
-                onClick={() => toggle(interest)}
-                className={`px-4 py-2 rounded-full text-xs md:text-sm font-medium transition-all duration-300 cursor-pointer animate-scale-in btn-press ${
+                key={tile.name}
+                type="button"
+                onClick={() => toggle(tile.name)}
+                className={`group relative p-4 rounded-2xl border text-left cursor-pointer transition-all duration-300 btn-press animate-slide-up flex flex-col justify-between aspect-[16/11] ${
                   isSelected
-                    ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white border border-amber-400/40 shadow-[0_4px_16px_rgba(234,88,12,0.35)] scale-105'
-                    : 'bg-[#251a13]/80 text-[#c7b5a3] hover:text-[#fef9f5] border border-amber-900/30 hover:border-amber-700/50 hover:bg-[#302219]'
+                    ? 'border-amber-400 ring-2 ring-amber-400/60 shadow-xl shadow-amber-950/60 bg-[#1e130a]'
+                    : 'border-amber-900/30 hover:border-amber-600/50 hover:shadow-lg bg-[#140d08]/80'
                 }`}
               >
-                {interest}
+                {/* Tile Background Gradient */}
+                <div
+                  className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${tile.gradient} opacity-50 group-hover:opacity-80 transition-opacity`}
+                />
+
+                {/* Top Pin Indicator */}
+                <div className="relative z-10 flex justify-between items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80" />
+                  {isSelected && (
+                    <span className="text-[10px] font-mono text-amber-300 uppercase tracking-widest bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-900/40">
+                      Selected
+                    </span>
+                  )}
+                </div>
+
+                {/* Bottom Tile Name */}
+                <div className="relative z-10">
+                  <h4 className="text-xs sm:text-sm font-semibold text-[#f5ebe0] leading-snug group-hover:text-amber-200 transition-colors">
+                    {tile.name}
+                  </h4>
+                </div>
               </button>
             )
           })}
         </div>
-
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-2 h-2 rounded-full bg-amber-500/70" />
-          <p className="text-xs text-[#a89582] tracking-wider uppercase font-medium">
-            {selected.length} of 15 selected
-          </p>
-        </div>
-
-        {/* Dual Primary Action Lounge Paths */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-6 max-w-xl mx-auto">
-          <button 
-            onClick={handleEnterMatchmaking}
-            className="px-6 py-4 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white font-medium text-sm rounded-2xl transition-all duration-300 shadow-[0_8px_24px_-4px_rgba(234,88,12,0.4)] hover:shadow-[0_12px_32px_-4px_rgba(234,88,12,0.6)] cursor-pointer flex items-center justify-center gap-2 btn-press"
-          >
-            <SearchIcon className="w-4 h-4 text-amber-200" />
-            <span>Enter Matchmaking Lounge</span>
-          </button>
-
-          <button 
-            onClick={handleEnterSolo}
-            className="px-6 py-4 bg-[#261b14] hover:bg-[#32231a] border border-amber-900/40 hover:border-amber-700/60 text-[#f5ebe0] font-medium text-sm rounded-2xl transition-all duration-300 shadow-md cursor-pointer flex items-center justify-center gap-2 btn-press"
-          >
-            <PlayIcon className="w-4 h-4 text-amber-400" />
-            <span>Unwind in Solo Lounge</span>
-          </button>
-        </div>
-
-        {/* Discreet Skip Options */}
-        <div className="flex items-center justify-center gap-4 text-xs text-[#8c7867]">
-          <button 
-            onClick={() => handleSkipTo('/queue')}
-            className="hover:text-[#d4c3b3] underline underline-offset-4 cursor-pointer transition"
-          >
-            Skip to Matchmaking
-          </button>
-          <span>·</span>
-          <button 
-            onClick={() => handleSkipTo('/solo')}
-            className="hover:text-[#d4c3b3] underline underline-offset-4 cursor-pointer transition"
-          >
-            Skip to Solo Lounge
-          </button>
-        </div>
       </main>
+
+      {/* Bottom Dual-Path Action Drawer */}
+      <footer className="max-w-xl mx-auto w-full pb-4 z-10">
+        <div className="glass-panel p-4 rounded-2xl border border-amber-900/35 shadow-2xl flex flex-col sm:flex-row gap-2.5">
+          <Button
+            variant="primary"
+            size="md"
+            onClick={handleEnterMatchmaking}
+            leftIcon={<SearchIcon className="w-4 h-4" />}
+            className="flex-1 py-3 text-xs sm:text-sm font-semibold"
+          >
+            Enter Matchmaking ({selected.length} selected)
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={handleEnterSolo}
+            leftIcon={<PlayIcon className="w-4 h-4 text-amber-400" />}
+            className="flex-1 py-3 text-xs sm:text-sm"
+          >
+            Unwind in Solo Lounge
+          </Button>
+        </div>
+      </footer>
     </div>
   )
 }

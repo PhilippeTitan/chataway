@@ -1,69 +1,69 @@
-// Deduplication utility functions
+/**
+ * Client-Side Deduplication Engine [Q014, Q027, Q33]
+ * 100% private and on-device. Zero server profiling.
+ * Tracks seen video/clip hashes in localStorage with 30-day auto-expiry.
+ */
 
-const LOCAL_STORAGE_PREFIX = 'seen_'
+const STORAGE_KEY = 'chataway_seen_hashes'
+const ROLLING_WINDOW_MS = 30 * 24 * 60 * 60 * 1000 // 30 rolling days [Q014]
 
-// Check if video is seen in localStorage (fast check)
-export function isSeenLocal(hash: string): boolean {
-  if (typeof window === 'undefined') return false
-  return localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`) === 'true'
+interface SeenRecord {
+  timestamp: number
 }
 
-// Mark video as seen in localStorage
-export function markSeenLocal(hash: string): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${hash}`, 'true')
-}
-
-// Check if videos are seen via Supabase (cross-user)
-export async function checkSeenSupabase(hashes: string[]): Promise<string[]> {
+function getSeenMap(): Record<string, SeenRecord> {
+  if (typeof window === 'undefined') return {}
   try {
-    const res = await fetch('/api/dedup/check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hashes }),
-    })
-    const data = await res.json()
-    return data.seenHashes || []
-  } catch {
-    return []
-  }
-}
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, SeenRecord>
+    const now = Date.now()
 
-// Mark video as seen in Supabase
-export async function markSeenSupabase(hash: string, site: string, videoId: string): Promise<void> {
-  try {
-    await fetch('/api/dedup/mark', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hash, site, videoId }),
-    })
-  } catch {
-    // Silent fail - localStorage is primary
-  }
-}
-
-// Filter out seen videos from results
-export async function filterSeen<T extends { hash?: string; site?: string; videoId?: string }>(videos: T[]): Promise<T[]> {
-  // First, filter by localStorage (instant)
-  const unseen = videos.filter(v => (v.hash ? !isSeenLocal(v.hash) : true))
-  
-  if (unseen.length === 0) return []
-  
-  // Then, check Supabase for cross-user dedup
-  const hashesToCheck = unseen.map(v => v.hash).filter(Boolean) as string[]
-  if (hashesToCheck.length === 0) return unseen
-
-  const seenHashes = await checkSeenSupabase(hashesToCheck)
-  
-  return unseen.filter(v => !v.hash || !seenHashes.includes(v.hash))
-}
-
-// Mark a video as seen (both local and Supabase)
-export async function markSeen(video: { hash?: string; site?: string; videoId?: string }): Promise<void> {
-  if (video.hash) {
-    markSeenLocal(video.hash)
-    if (video.site && video.videoId) {
-      void markSeenSupabase(video.hash, video.site, video.videoId)
+    // Prune entries older than 30 days
+    const active: Record<string, SeenRecord> = {}
+    for (const [hash, entry] of Object.entries(parsed)) {
+      if (now - entry.timestamp < ROLLING_WINDOW_MS) {
+        active[hash] = entry
+      }
     }
+    return active
+  } catch {
+    return {}
   }
+}
+
+function saveSeenMap(map: Record<string, SeenRecord>): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(map))
+  } catch {}
+}
+
+/** Check if a video hash was seen in the last 30 days */
+export function isSeen(hash: string): boolean {
+  if (!hash) return false
+  const map = getSeenMap()
+  return Boolean(map[hash])
+}
+
+/** Mark a video hash as seen */
+export async function markSeen(video: { hash?: string }): Promise<void> {
+  if (!video.hash) return
+  const map = getSeenMap()
+  map[video.hash] = { timestamp: Date.now() }
+  saveSeenMap(map)
+}
+
+/** Filter unseen videos from a list */
+export async function filterSeen<T extends { hash?: string }>(videos: T[]): Promise<T[]> {
+  const map = getSeenMap()
+  return videos.filter((v) => !v.hash || !map[v.hash])
+}
+
+/** Manual reset: Purge all 30-day seen history [Q014] */
+export function resetSeenHistory(): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {}
 }

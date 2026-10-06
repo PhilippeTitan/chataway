@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import SunsetBackdrop from '@/components/SunsetBackdrop'
 import { VideoIcon, CloseIcon, CheckIcon, UserIcon } from '@/components/icons'
 
 interface MatchStatus {
@@ -127,8 +126,8 @@ export default function Queue() {
   // Connected Celestial Fusion Moment ([Q145])
   if (matched) {
     return (
-      <div className="relative min-h-dvh text-[#f5ebe0] flex flex-col items-center justify-center p-6 safe-top safe-bottom selection:bg-amber-800/40 selection:text-amber-200">
-        <SunsetBackdrop />
+      <div className="relative min-h-dvh bg-[#0e0a07] text-[#f5ebe0] flex flex-col items-center justify-center p-6 safe-top safe-bottom selection:bg-amber-800/40 selection:text-amber-200">
+        <div className="absolute inset-0 bg-gradient-to-t from-amber-950/20 via-orange-950/10 to-transparent pointer-events-none" />
         <main className="relative z-10 w-full max-w-md mx-auto backdrop-blur-2xl bg-[#1c130d]/80 border border-amber-500/40 rounded-3xl p-8 md:p-12 shadow-[0_24px_64px_-16px_rgba(245,158,11,0.3),inset_0_1px_1px_rgba(245,235,224,0.15)] text-center animate-scale-in">
           {/* Celestial Embers Merging */}
           <div className="relative w-32 h-32 mx-auto mb-6 flex items-center justify-center">
@@ -154,8 +153,8 @@ export default function Queue() {
   }
 
   return (
-    <div className="relative min-h-dvh text-[#f5ebe0] flex flex-col items-center justify-center p-6 safe-top safe-bottom selection:bg-amber-800/40 selection:text-amber-200">
-      <SunsetBackdrop />
+    <div className="relative min-h-dvh bg-[#0e0a07] text-[#f5ebe0] flex flex-col items-center justify-center p-6 safe-top safe-bottom selection:bg-amber-800/40 selection:text-amber-200">
+      <div className="absolute inset-0 bg-gradient-to-t from-amber-950/20 via-orange-950/10 to-transparent pointer-events-none" />
       <main className="relative z-10 w-full max-w-md mx-auto backdrop-blur-2xl bg-[#1c130d]/75 border border-amber-900/35 rounded-3xl p-8 md:p-12 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(245,235,224,0.12)] text-center animate-slide-up">
         {/* Harmonic Breathing Sphere ([Q091]) */}
         <div className="relative w-36 h-36 mx-auto mb-6 flex items-center justify-center">

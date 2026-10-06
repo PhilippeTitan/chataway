@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import QuestBubble, { Quest } from './QuestBubble'
-import RequestBubble, { Request } from './RequestBubble'
+import { InteractionBubble, Quest, Request } from './InteractionBubble'
 import SafetyExit from './SafetyExit'
 import RoleSwitch from './RoleSwitch'
 import CategoryPicker from './CategoryPicker'
@@ -306,13 +305,15 @@ export default function ControlMode({
 
         <div className="stagger-children">
           {quests.map((quest) => (
-            <div key={quest.id} className="mb-3">
-              <QuestBubble
-                quest={quest}
-                isMine={quest.sender === 'controller' && isController}
-                fullAuto={fullAuto && !isController}
-                onAccept={handleQuestAccept}
-                onDeny={handleQuestDeny}
+            <div key={quest.id} className="mb-2">
+              <InteractionBubble
+                variant="quest"
+                text={quest.text}
+                fromMe={quest.sender === 'controller' && isController}
+                isPending={quest.status === 'pending'}
+                tier={1}
+                onAccept={() => handleQuestAccept(quest.id)}
+                onDecline={() => handleQuestDeny(quest.id)}
               />
             </div>
           ))}
@@ -320,12 +321,15 @@ export default function ControlMode({
 
         <div className="stagger-children">
           {requests.map((request) => (
-            <div key={request.id} className="mb-3">
-              <RequestBubble
-                request={request}
-                isMine={request.status !== 'pending'}
-                onAccept={handleRequestAccept}
-                onDeny={handleRequestDeny}
+            <div key={request.id} className="mb-2">
+              <InteractionBubble
+                variant="request"
+                text={request.text}
+                fromMe={request.status !== 'pending'}
+                isPending={request.status === 'pending'}
+                tier={2}
+                onAccept={() => handleRequestAccept(request.id)}
+                onDecline={() => handleRequestDeny(request.id)}
               />
             </div>
           ))}
