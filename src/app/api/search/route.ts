@@ -17,43 +17,63 @@ const QUERY_ALIASES: Record<string, string> = {
 
 const GENERIC_TERMS = new Set(['video', 'videos'])
 
-function normalizeQuery(query: string): string {
-  const normalized = query.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-  return normalized
-    .split(/\s+/)
-    .map(term => QUERY_ALIASES[term] || term)
-    .join(' ')
+function parseQueryTerms(query: string): { positive: string[]; negative: string[] } {
+  const parts = query.trim().split(/\s+/)
+  const positive: string[] = []
+  const negative: string[] = []
+
+  for (const part of parts) {
+    if (part.startsWith('-') && part.length > 1) {
+      const cleanNeg = part.slice(1).toLowerCase().replace(/[^a-z0-9]+/g, '')
+      if (cleanNeg) negative.push(cleanNeg)
+    } else {
+      const clean = part.toLowerCase().replace(/[^a-z0-9]+/g, '')
+      if (clean && !GENERIC_TERMS.has(clean)) {
+        positive.push(QUERY_ALIASES[clean] || clean)
+      }
+    }
+  }
+
+  return { positive, negative }
 }
 
 function curateResults(videos: Record<string, unknown>[], query: string): Record<string, unknown>[] {
-  const normalizedQuery = normalizeQuery(query)
-  const queryTerms = normalizedQuery.split(/\s+/).filter(term => term && !GENERIC_TERMS.has(term))
-  if (queryTerms.length === 0) return videos
+  const { positive, negative } = parseQueryTerms(query)
+  if (positive.length === 0 && negative.length === 0) return videos
 
   return videos
-    .map((video, index) => {
-      const title = String(video.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')
-      const allTermsMatch = queryTerms.every(term => title.includes(term))
-      const matchedTerms = queryTerms.filter(term => title.includes(term)).length
-      const exactPhraseMatch = title.includes(normalizedQuery)
-      const score = (allTermsMatch ? 1000 : 0) + (exactPhraseMatch ? 500 : 0) + matchedTerms * 100 - index
-      return { video, score, allTermsMatch }
+    .filter(video => {
+      const title = String(video.title || '').toLowerCase()
+      // Exclude any title containing negative keywords ([Q176])
+      if (negative.some(neg => title.includes(neg))) return false
+      // Match positive keywords
+      if (positive.length > 0) {
+        return positive.every(term => title.includes(term))
+      }
+      return true
     })
-    .filter(result => result.allTermsMatch)
-    .sort((first, second) => second.score - first.score)
-    .map(result => result.video)
+    .map((video, index) => {
+      const title = String(video.title || '').toLowerCase()
+      const exactPhrase = positive.join(' ')
+      const exactPhraseMatch = exactPhrase ? title.includes(exactPhrase) : false
+      const score = (exactPhraseMatch ? 500 : 0) - index
+      return { video, score }
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(r => r.video)
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q') || 'amateur'
-  const normalizedQuery = normalizeQuery(query)
+  const { positive } = parseQueryTerms(query)
+  const searchQuery = positive.length > 0 ? positive.join(' ') : 'amateur'
   const page = searchParams.get('page') || '1'
   const sort = searchParams.get('sort') || 'relevance'
 
   try {
     const url = new URL('https://www.xvideos.com/')
-    url.searchParams.set('k', normalizedQuery)
+    url.searchParams.set('k', searchQuery)
     url.searchParams.set('p', page)
     if (sort && sort !== 'relevance') {
       url.searchParams.set('sort', sort)
@@ -159,7 +179,7 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json(curateResults(videos, normalizedQuery))
+    return NextResponse.json(curateResults(videos, query))
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json(

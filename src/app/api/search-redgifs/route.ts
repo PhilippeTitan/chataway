@@ -22,11 +22,26 @@ function getCacheKey(action: string, query: string, count: string, page: string)
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const query = searchParams.get('q') || 'trending'
+  const rawQuery = searchParams.get('q') || 'trending'
   const action = searchParams.get('action') || 'search'
-  const count = searchParams.get('count') || '10'
+  const count = searchParams.get('count') || '12'
   const page = searchParams.get('page') || '1'
-  const cacheKey = getCacheKey(action, query, count, page)
+
+  // Parse positive vs negative exclusion terms ([Q176])
+  const parts = rawQuery.trim().split(/\s+/)
+  const positive: string[] = []
+  const negative: string[] = []
+  for (const part of parts) {
+    if (part.startsWith('-') && part.length > 1) {
+      negative.push(part.slice(1).toLowerCase().replace(/[^a-z0-9]+/g, ''))
+    } else {
+      const clean = part.toLowerCase().replace(/[^a-z0-9]+/g, '')
+      if (clean) positive.push(clean)
+    }
+  }
+
+  const query = positive.length > 0 ? positive.join(' ') : 'trending'
+  const cacheKey = getCacheKey(action, `${query}_neg_${negative.join('_')}`, count, page)
   const cached = redgifsCache.get(cacheKey)
 
   if (cached && cached.expiresAt > Date.now()) {
@@ -56,7 +71,14 @@ export async function GET(request: Request) {
         return { error: stderr.slice(0, 500) }
       }
 
-      const results = JSON.parse(stdout)
+      let results = JSON.parse(stdout)
+      if (Array.isArray(results) && negative.length > 0) {
+        results = results.filter((item: Record<string, unknown>) => {
+          const title = String(item.title || '').toLowerCase()
+          const tags = Array.isArray(item.tags) ? item.tags.map(String).join(' ').toLowerCase() : ''
+          return !negative.some(neg => title.includes(neg) || tags.includes(neg))
+        })
+      }
 
       if (results.length === 1 && results[0]?.error) {
         console.warn('[redgifs] script reported dependency issue:', results[0].error)
