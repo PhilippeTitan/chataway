@@ -12,8 +12,9 @@ interface VideoPlayerProps {
   duration?: string
   onBack: () => void
   formats?: { format_id: string; url: string; ext: string; width: number; height: number }[]
-  mode?: 'solo' | 'together'
+  mode?: 'solo' | 'together' | 'embedded'
   canControl?: boolean
+  extracting?: boolean
 }
 
 export default function VideoPlayer({
@@ -25,6 +26,7 @@ export default function VideoPlayer({
   formats,
   mode = 'solo',
   canControl = true,
+  extracting = false,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -203,14 +205,39 @@ export default function VideoPlayer({
     <div
       ref={containerRef}
       className={`${
-        mode === 'together' ? 'relative w-full h-full min-h-0' : 'fixed inset-0 z-50 min-h-dvh'
+        mode === 'together'
+          ? 'relative w-full h-full min-h-0'
+          : mode === 'embedded'
+            ? 'relative w-full rounded-2xl overflow-hidden'
+            : 'fixed inset-0 z-50 min-h-dvh'
       } bg-[#0e0a07] flex flex-col overflow-hidden select-none`}
+      style={mode === 'embedded' ? { aspectRatio: '16/9' } : undefined}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={() => (touchStartY.current = 0)}
     >
+      {/* Extracting Overlay — shown before stream is ready */}
+      {extracting && (
+        <div className="absolute inset-0 z-50 bg-[#0e0a07] flex flex-col items-center justify-center gap-4">
+          {thumbnail && (
+            <img
+              src={thumbnail}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-20 blur-md"
+            />
+          )}
+          <div className="relative z-10 flex flex-col items-center gap-4">
+            <div className="relative w-14 h-14">
+              <div className="absolute inset-0 rounded-full border-2 border-amber-900/40" />
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-amber-400 border-r-amber-500 animate-spin" />
+            </div>
+            <p className="text-sm font-serif italic text-amber-200 animate-pulse">Connecting stream…</p>
+            <p className="text-[11px] text-[#a89582]">This may take a few seconds</p>
+          </div>
+        </div>
+      )}
       {/* Dynamic Ambilight Glow ([Q158]) */}
       <div
         className="absolute -inset-10 bg-gradient-to-tr from-amber-600/15 via-orange-600/10 to-transparent blur-3xl pointer-events-none rounded-3xl transition-opacity duration-1000"
@@ -308,7 +335,9 @@ export default function VideoPlayer({
           ref={videoRef}
           poster={thumbnail}
           crossOrigin="anonymous"
-          className="w-full h-full max-w-full max-h-full object-contain cursor-pointer transition-[filter] duration-150"
+          className={`w-full h-full max-w-full max-h-full cursor-pointer transition-[filter] duration-150 ${
+            mode === 'embedded' ? 'object-cover' : 'object-contain'
+          }`}
           style={{ filter: `brightness(${brightness}%)` }}
           playsInline
           controls={false}

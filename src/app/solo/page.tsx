@@ -14,11 +14,10 @@ import {
 import SearchAutocomplete, { SearchFilters } from '@/components/SearchAutocomplete'
 import { MediaCard, MediaItem } from '@/components/MediaCard'
 import { Skeleton } from '@/components/ui/Skeleton'
-import VideoPlayer from '@/components/VideoPlayer'
 import ClipsPlayer from '@/components/ClipsPlayer'
 import NichesBar from '@/components/NichesBar'
-import { filterSeen, markSeen } from '@/utils/dedup'
-import { saveToVault, removeFromVault, isInVault, getVaultItems, VaultItem } from '@/utils/vault'
+import { filterSeen } from '@/utils/dedup'
+import { saveToVault, removeFromVault, getVaultItems, VaultItem } from '@/utils/vault'
 import { haptics } from '@/utils/haptics'
 import { useToast } from '@/components/ui/Toast'
 import { useSanctuary } from '@/context/SanctuaryContext'
@@ -34,11 +33,6 @@ interface Video {
   site?: string
   siteUrl?: string
   hash?: string
-}
-
-interface VideoWithStream extends Video {
-  streamUrl?: string
-  formats?: { format_id: string; url: string; ext: string; width: number; height: number }[]
 }
 
 const videoCache = new Map<string, Video[]>()
@@ -58,10 +52,8 @@ export default function SoloLounge() {
 
   const [videos, setVideos] = useState<Video[]>([])
   const [clips, setClips] = useState<Clip[]>([])
-  const [selectedVideo, setSelectedVideo] = useState<VideoWithStream | null>(null)
   const [selectedClipIndex, setSelectedClipIndex] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
-  const [extractingHash, setExtractingHash] = useState<string | null>(null)
   const [searched, setSearched] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeMashup, setActiveMashup] = useState<string | null>(null)
@@ -385,7 +377,7 @@ export default function SoloLounge() {
     return () => observer.disconnect()
   }, [hasMore, loadingMore, loading, loadMore])
 
-  // In-Card Video Stream Extraction [Q36]
+  // Navigate to dedicated Video Page instead of inline overlay [Video Page Redesign]
   async function handleMediaSelect(item: MediaItem) {
     if (contentMode === 'clips') {
       const idx = clips.findIndex((c) => c.clipId === item.id || c.hash === item.hash)
@@ -396,45 +388,19 @@ export default function SoloLounge() {
     const video = videos.find((v) => v.videoId === item.id || v.hash === item.hash)
     if (!video) return
 
-    if (video.hash) {
-      const isSeen = await filterSeen([video])
-      if (isSeen.length === 0) {
-        toast({ title: 'Already viewed', description: 'Skipping to next scene', variant: 'info' })
-        const currentIndex = videos.findIndex((v) => v.hash === video.hash)
-        const nextVideo = videos[currentIndex + 1]
-        if (nextVideo) handleMediaSelect({ id: nextVideo.videoId, title: nextVideo.title, thumbnail: nextVideo.thumbnail, hash: nextVideo.hash })
-        return
-      }
-    }
+    haptics.confirm()
 
-    setExtractingHash(video.hash || video.videoId)
-    try {
-      const res = await fetch(
-        `/api/extract?url=${encodeURIComponent(video.siteUrl || '')}&hash=${video.hash || ''}`
-      )
-      const data = await res.json()
-
-      if (data.streamUrl) {
-        if (video.hash && video.site && video.videoId) {
-          await markSeen(video)
-        }
-        setSelectedVideo({
-          ...video,
-          streamUrl: data.streamUrl,
-          thumbnail: data.thumbnail || video.thumbnail,
-          formats: data.formats,
-        })
-      } else {
-        toast({ title: 'Stream unavailable', description: 'Advancing automatically', variant: 'alert' })
-        const currentIndex = videos.findIndex((v) => v.hash === video.hash)
-        const nextVideo = videos[currentIndex + 1]
-        if (nextVideo) handleMediaSelect({ id: nextVideo.videoId, title: nextVideo.title, thumbnail: nextVideo.thumbnail, hash: nextVideo.hash })
-      }
-    } catch {
-      toast({ title: 'Extraction failed', description: 'Seeking alternative', variant: 'alert' })
-    } finally {
-      setExtractingHash(null)
-    }
+    // Navigate to the dedicated video page — extraction happens there
+    const params = new URLSearchParams({
+      url: video.siteUrl || '',
+      hash: video.hash || '',
+      title: video.title || '',
+      thumb: video.thumbnail || '',
+      dur: video.duration || '',
+      site: video.site || '',
+      vid: video.videoId || '',
+    })
+    router.push(`/video?${params.toString()}`)
   }
 
   // Vault Save/Unsave Toggle [Q180]
@@ -494,19 +460,6 @@ export default function SoloLounge() {
       }
     }
   }, [contentMode, searched, clips.length, videos.length, searchClips, searchVideos])
-
-  if (selectedVideo && selectedVideo.streamUrl) {
-    return (
-      <VideoPlayer
-        streamUrl={selectedVideo.streamUrl}
-        thumbnail={selectedVideo.thumbnail || ''}
-        title={selectedVideo.title}
-        duration={selectedVideo.duration || undefined}
-        onBack={() => setSelectedVideo(null)}
-        formats={selectedVideo.formats}
-      />
-    )
-  }
 
   if (selectedClipIndex !== null) {
     return (
@@ -703,7 +656,6 @@ export default function SoloLounge() {
                         hash: video.hash,
                       }}
                       variant="video"
-                      isExtracting={extractingHash === (video.hash || video.videoId)}
                       isSaved={vaultHashes.has(video.hash || '')}
                       onSelect={handleMediaSelect}
                       onToggleSave={handleToggleVault}

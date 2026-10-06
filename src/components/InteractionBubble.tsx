@@ -6,6 +6,20 @@ import { haptics } from '@/utils/haptics'
 
 export type InteractionVariant = 'quest' | 'request' | 'praise'
 
+export interface Quest {
+  id: string
+  text: string
+  category: string
+  sender: 'controller' | 'participant'
+  status: 'pending' | 'accepted' | 'denied'
+}
+
+export interface Request {
+  id: string
+  text: string
+  status: 'pending' | 'accepted' | 'denied'
+}
+
 export interface InteractionBubbleProps {
   variant: InteractionVariant
   text: string
